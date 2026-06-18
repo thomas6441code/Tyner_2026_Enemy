@@ -1,0 +1,45 @@
+# Laravel
+laravel-app/.env
+laravel-app/vendor/
+laravel-app/node_modules/
+laravel-app/storage/app/public
+laravel-app/storage/framework/cache/
+laravel-app/storage/framework/sessions/
+laravel-app/storage/framework/testing/
+laravel-app/storage/framework/views/
+laravel-app/storage/logs/
+laravel-app/bootstrap/cache/
+laravel-app/public/hot
+laravel-app/public/storage
+laravel-app/.phpunit.result.cache
+laravel-app/.pint.cache
+
+# Python services
+ai-service/venv/
+ai-service/__pycache__/
+ai-service/*.pyc
+ai-service/.pytest_cache/
+ai-service/.ruff_cache/
+ai-service/models/*.pkl
+biometric-adapter/venv/
+biometric-adapter/__pycache__/
+biometric-adapter/*.pyc
+biometric-adapter/.pytest_cache/
+biometric-adapter/.ruff_cache/
+
+# Docker
+.env
+*.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

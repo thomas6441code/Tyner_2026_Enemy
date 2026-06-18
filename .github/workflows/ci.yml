@@ -1,0 +1,101 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+
+  # ── Laravel ──────────────────────────────────────────────────────────────────
+  laravel:
+    name: Laravel (Pest + Pint)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: laravel-app
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: rootpassword
+          MYSQL_DATABASE: ifm_attendance_test
+          MYSQL_USER: ifm
+          MYSQL_PASSWORD: secret
+        ports: ["3306:3306"]
+        options: --health-cmd="mysqladmin ping" --health-interval=10s --health-retries=5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: "8.2"
+          extensions: pdo_mysql, mbstring, xml, bcmath
+          coverage: none
+
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-interaction
+
+      - name: Copy .env
+        run: cp .env.example .env && php artisan key:generate
+
+      - name: Run Pint (lint)
+        run: ./vendor/bin/pint --test
+
+      - name: Run tests
+        env:
+          DB_CONNECTION: mysql
+          DB_HOST: 127.0.0.1
+          DB_PORT: 3306
+          DB_DATABASE: ifm_attendance_test
+          DB_USERNAME: ifm
+          DB_PASSWORD: secret
+        run: php artisan test
+
+  # ── AI Service ────────────────────────────────────────────────────────────────
+  ai-service:
+    name: AI Service (pytest + ruff)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ai-service
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: ai-service/requirements.txt
+
+      - run: pip install -r requirements.txt
+      - run: ruff check .
+      - run: black --check .
+      - run: pytest
+
+  # ── Biometric Adapter ────────────────────────────────────────────────────────
+  biometric-adapter:
+    name: Biometric Adapter (pytest + ruff)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: biometric-adapter
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: biometric-adapter/requirements.txt
+
+      - run: pip install -r requirements.txt
+      - run: ruff check .
+      - run: black --check .
+      - run: pytest

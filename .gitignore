@@ -16,13 +16,17 @@ yner_main/.pint.cache
 
 # Python services
 ai-service/venv/
+ai-service/**/__pycache__/
 ai-service/__pycache__/
+ai-service/**/*.pyc
 ai-service/*.pyc
 ai-service/.pytest_cache/
 ai-service/.ruff_cache/
 ai-service/models/*.pkl
 bio-service/venv/
+bio-service/**/__pycache__/
 bio-service/__pycache__/
+bio-service/**/*.pyc
 bio-service/*.pyc
 bio-service/.pytest_cache/
 bio-service/.ruff_cache/

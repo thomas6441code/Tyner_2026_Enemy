@@ -1,4 +1,4 @@
-# IFM Attendance & Permission Management System
+# Employee Attendance & Permission Management System (EAPMS)
 
 A Final Year Project for the **Institute of Finance Management (IFM)**.
 
@@ -6,28 +6,46 @@ Biometric attendance (ZKTeco / Hikvision) + HR permission/leave management — s
 
 ## Architecture
 
-Three services, one Docker Compose:
+Three services, one Docker Compose, all orchestrated from **yner_main**:
 
 | Service | Tech | Port |
 |---|---|---|
-| `laravel-app` | Laravel 11 / PHP 8.2, MySQL 8 | 8000 |
+| `yner_main` | Laravel 12 / PHP 8.2, MySQL 8 — core app | 8000 |
 | `ai-service` | Python / FastAPI, scikit-learn, Claude API | 8001 |
-| `biometric-adapter` | Python / FastAPI, pyzk / ISAPI | 8002 |
+| `bio-service` | Python / FastAPI, pyzk / ISAPI — biometric adapter | 8002 |
 
-## Quick start
+## Quick start (development)
+
+```powershell
+# Windows
+.\start.ps1
+
+# Linux / macOS
+bash start.sh
+```
+
+This launches all three services from `yner_main` and streams their status to the console.
+
+**Check status at any time:**
+```powershell
+.\status.ps1            # Windows
+# or
+cd yner_main && php artisan eapms:status
+cd yner_main && php artisan eapms:status --watch   # refreshes every 5s
+```
+
+## Quick start (Docker — all in one)
 
 ```bash
-cp .env.example .env          # fill in secrets
+cp .env.example .env    # fill in secrets
 docker compose up --build
 ```
 
-The Laravel app will be available at http://localhost:8000.
+## Manual per-service start
 
-## Local development (without Docker)
-
-### Laravel
+### yner_main (Laravel)
 ```bash
-cd laravel-app
+cd yner_main
 cp .env.example .env && php artisan key:generate
 composer install
 php artisan migrate --seed
@@ -36,21 +54,21 @@ php artisan serve
 
 ### Python services
 ```bash
-cd ai-service           # or biometric-adapter
-python -m venv venv && source venv/bin/activate
+cd ai-service           # or bio-service
+python -m venv venv && source venv/bin/activate    # or venv\Scripts\activate on Windows
 pip install -r requirements.txt
-uvicorn main:app --reload
+uvicorn main:app --reload --port 8001              # 8002 for bio-service
 ```
 
 ## Running tests
 
 ```bash
-# Laravel
-cd laravel-app && php artisan test
+# yner_main
+cd yner_main && php artisan test
 
 # Python services
 cd ai-service && pytest
-cd biometric-adapter && pytest
+cd bio-service && pytest
 ```
 
 ## Branching strategy

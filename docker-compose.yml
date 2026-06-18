@@ -5,8 +5,8 @@ services:
     image: mysql:8.0
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-rootpassword}
-      MYSQL_DATABASE: ${DB_DATABASE:-ifm_attendance}
-      MYSQL_USER: ${DB_USERNAME:-ifm}
+      MYSQL_DATABASE: ${DB_DATABASE:-eapms}
+      MYSQL_USER: ${DB_USERNAME:-eapms}
       MYSQL_PASSWORD: ${DB_PASSWORD:-secret}
     volumes:
       - mysql_data:/var/lib/mysql
@@ -17,53 +17,55 @@ services:
       interval: 10s
       retries: 5
 
-  # ── Laravel (php-fpm + nginx) ─────────────────────────────────────────────
-  laravel-app:
+  # ── yner_main (Laravel — core app) ───────────────────────────────────────────
+  yner_main:
     build:
-      context: ./laravel-app
+      context: ./yner_main
       dockerfile: Dockerfile
     environment:
+      APP_NAME: "Employee Attendance & Permission Management System"
       APP_ENV: local
       APP_KEY: ${APP_KEY:-}
       DB_HOST: mysql
       DB_PORT: 3306
-      DB_DATABASE: ${DB_DATABASE:-ifm_attendance}
-      DB_USERNAME: ${DB_USERNAME:-ifm}
+      DB_DATABASE: ${DB_DATABASE:-eapms}
+      DB_USERNAME: ${DB_USERNAME:-eapms}
       DB_PASSWORD: ${DB_PASSWORD:-secret}
       INTERNAL_API_SECRET: ${INTERNAL_API_SECRET:-change-me-in-production}
       AI_SERVICE_URL: http://ai-service:8001
+      BIO_SERVICE_URL: http://bio-service:8002
     depends_on:
       mysql:
         condition: service_healthy
     volumes:
-      - ./laravel-app:/var/www/html
+      - ./yner_main:/var/www/html
     ports:
       - "8000:8000"
 
-  # ── AI Service ────────────────────────────────────────────────────────────
+  # ── AI Service ────────────────────────────────────────────────────────────────
   ai-service:
     build:
       context: ./ai-service
       dockerfile: Dockerfile
     environment:
       INTERNAL_API_SECRET: ${INTERNAL_API_SECRET:-change-me-in-production}
-      LARAVEL_BASE_URL: http://laravel-app:8000
+      LARAVEL_BASE_URL: http://yner_main:8000
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       CLAUDE_MODEL: claude-sonnet-4-6
     ports:
       - "8001:8001"
 
-  # ── Biometric Adapter ─────────────────────────────────────────────────────
-  biometric-adapter:
+  # ── Bio Service (Biometric Adapter) ──────────────────────────────────────────
+  bio-service:
     build:
-      context: ./biometric-adapter
+      context: ./bio-service
       dockerfile: Dockerfile
     environment:
       INTERNAL_API_SECRET: ${INTERNAL_API_SECRET:-change-me-in-production}
-      LARAVEL_BASE_URL: http://laravel-app:8000
+      LARAVEL_BASE_URL: http://yner_main:8000
       POLL_INTERVAL_SECONDS: 300
     depends_on:
-      - laravel-app
+      - yner_main
 
 volumes:
   mysql_data:

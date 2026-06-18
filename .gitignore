@@ -1,18 +1,18 @@
-# Laravel
-laravel-app/.env
-laravel-app/vendor/
-laravel-app/node_modules/
-laravel-app/storage/app/public
-laravel-app/storage/framework/cache/
-laravel-app/storage/framework/sessions/
-laravel-app/storage/framework/testing/
-laravel-app/storage/framework/views/
-laravel-app/storage/logs/
-laravel-app/bootstrap/cache/
-laravel-app/public/hot
-laravel-app/public/storage
-laravel-app/.phpunit.result.cache
-laravel-app/.pint.cache
+# yner_main (Laravel)
+yner_main/.env
+yner_main/vendor/
+yner_main/node_modules/
+yner_main/storage/app/public
+yner_main/storage/framework/cache/
+yner_main/storage/framework/sessions/
+yner_main/storage/framework/testing/
+yner_main/storage/framework/views/
+yner_main/storage/logs/
+yner_main/bootstrap/cache/
+yner_main/public/hot
+yner_main/public/storage
+yner_main/.phpunit.result.cache
+yner_main/.pint.cache
 
 # Python services
 ai-service/venv/
@@ -21,11 +21,11 @@ ai-service/*.pyc
 ai-service/.pytest_cache/
 ai-service/.ruff_cache/
 ai-service/models/*.pkl
-biometric-adapter/venv/
-biometric-adapter/__pycache__/
-biometric-adapter/*.pyc
-biometric-adapter/.pytest_cache/
-biometric-adapter/.ruff_cache/
+bio-service/venv/
+bio-service/__pycache__/
+bio-service/*.pyc
+bio-service/.pytest_cache/
+bio-service/.ruff_cache/
 
 # Docker
 .env

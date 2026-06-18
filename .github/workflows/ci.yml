@@ -8,21 +8,21 @@ on:
 
 jobs:
 
-  # ── Laravel ──────────────────────────────────────────────────────────────────
-  laravel:
-    name: Laravel (Pest + Pint)
+  # ── yner_main (Laravel) ───────────────────────────────────────────────────────
+  yner_main:
+    name: yner_main — Pint + PHPUnit
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: laravel-app
+        working-directory: yner_main
 
     services:
       mysql:
         image: mysql:8.0
         env:
           MYSQL_ROOT_PASSWORD: rootpassword
-          MYSQL_DATABASE: ifm_attendance_test
-          MYSQL_USER: ifm
+          MYSQL_DATABASE: eapms_test
+          MYSQL_USER: eapms
           MYSQL_PASSWORD: secret
         ports: ["3306:3306"]
         options: --health-cmd="mysqladmin ping" --health-interval=10s --health-retries=5
@@ -47,18 +47,11 @@ jobs:
         run: ./vendor/bin/pint --test
 
       - name: Run tests
-        env:
-          DB_CONNECTION: mysql
-          DB_HOST: 127.0.0.1
-          DB_PORT: 3306
-          DB_DATABASE: ifm_attendance_test
-          DB_USERNAME: ifm
-          DB_PASSWORD: secret
         run: php artisan test
 
   # ── AI Service ────────────────────────────────────────────────────────────────
   ai-service:
-    name: AI Service (pytest + ruff)
+    name: ai-service — ruff + pytest
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -78,13 +71,13 @@ jobs:
       - run: black --check .
       - run: pytest
 
-  # ── Biometric Adapter ────────────────────────────────────────────────────────
-  biometric-adapter:
-    name: Biometric Adapter (pytest + ruff)
+  # ── Bio Service ───────────────────────────────────────────────────────────────
+  bio-service:
+    name: bio-service — ruff + pytest
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: biometric-adapter
+        working-directory: bio-service
 
     steps:
       - uses: actions/checkout@v4
@@ -93,7 +86,7 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
-          cache-dependency-path: biometric-adapter/requirements.txt
+          cache-dependency-path: bio-service/requirements.txt
 
       - run: pip install -r requirements.txt
       - run: ruff check .

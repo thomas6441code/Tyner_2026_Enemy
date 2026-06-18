@@ -1,0 +1,4 @@
+# Device drivers — install in Phase 3 when connecting real hardware
+# Run: pip install -r requirements-devices.txt
+-r requirements.txt
+pyzk==0.9

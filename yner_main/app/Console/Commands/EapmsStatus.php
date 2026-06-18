@@ -12,21 +12,29 @@ class EapmsStatus extends Command
     protected $description = 'Show live health status of all EAPMS services';
 
     private array $services = [
-        'yner_main (Laravel)' => ['url' => null,                        'port' => 8000],
-        'ai-service'          => ['url' => 'http://127.0.0.1:8001',     'port' => 8001],
-        'bio-service'         => ['url' => 'http://127.0.0.1:8002',     'port' => 8002],
+        'yner_main (Laravel)' => ['url' => null,                    'port' => 8000],
+        'ai-service (FastAPI)' => ['url' => 'http://127.0.0.1:8001', 'port' => 8001],
+        'bio-service (FastAPI)'=> ['url' => 'http://127.0.0.1:8002', 'port' => 8002],
     ];
 
     public function handle(): int
     {
         $watch = $this->option('watch');
 
+        if ($watch) {
+            $this->line(' <fg=gray>Watching — press Ctrl+C to exit.</>');
+        }
+
         do {
+            if ($watch) {
+                // ANSI: clear screen and move cursor to top-left
+                $this->output->write("\033[2J\033[H");
+            }
+
             $this->renderDashboard();
 
             if ($watch) {
                 sleep(5);
-                $this->output->write("\033[" . (count($this->services) + 6) . "A"); // move cursor up
             }
         } while ($watch);
 
@@ -35,45 +43,65 @@ class EapmsStatus extends Command
 
     private function renderDashboard(): void
     {
-        $this->line('');
-        $this->line(' <fg=cyan;options=bold>EAPMS — Employee Attendance & Permission Management System</>');
-        $this->line(' <fg=gray>Service Health Dashboard — ' . now()->format('Y-m-d H:i:s') . '</>');
-        $this->line(' ' . str_repeat('─', 55));
+        $rows    = [];
+        $allUp   = true;
+        $anyDown = false;
 
         foreach ($this->services as $name => $config) {
-            [$status, $latency] = $this->checkService($name, $config);
+            [$status, $latency] = $this->checkService($config);
 
-            $icon    = $status === 'UP' ? '<fg=green>●</>' : '<fg=red>●</>';
-            $badge   = $status === 'UP' ? '<fg=green;options=bold> UP  </>' : '<fg=red;options=bold> DOWN</>';
-            $portStr = "<fg=gray>:{$config['port']}</>";
-            $latStr  = $status === 'UP' ? " <fg=gray>{$latency}ms</>" : '';
+            if ($status !== 'UP') {
+                $allUp   = false;
+                $anyDown = true;
+            }
 
-            $this->line("  {$icon} {$badge}  <options=bold>{$name}</>  {$portStr}{$latStr}");
+            $statusCell  = $status === 'UP'
+                ? '<fg=green>● UP  </>'
+                : '<fg=red>● DOWN</>';
+            $latencyCell = $status === 'UP' && $latency > 0
+                ? "{$latency} ms"
+                : ($status === 'UP' ? 'self' : '—');
+
+            $rows[] = [$statusCell, "<options=bold>{$name}</>", ":{$config['port']}", $latencyCell];
         }
 
-        $this->line(' ' . str_repeat('─', 55));
-        $this->line(' <fg=gray>Run <options=bold>php artisan eapms:start</> to launch all services.</>');
+        $this->line('');
+        $this->line(' <fg=cyan;options=bold>EAPMS — Employee Attendance & Permission Management System</>');
+        $this->line(' <fg=gray>' . now()->format('Y-m-d H:i:s') . '</>');
+        $this->line('');
+        $this->table(['Status', 'Service', 'Port', 'Latency'], $rows);
+
+        if ($allUp) {
+            $this->line(' <fg=green>All services are running.</>');
+        } else {
+            $this->line(' <fg=yellow>One or more services are down. Check <options=bold>storage/logs/services/</> for details.</>');
+        }
+
+        if ($this->option('watch')) {
+            $this->line(' <fg=gray>Next refresh in 5 s — Ctrl+C to exit.</>');
+        } else {
+            $this->line(' <fg=gray>Run with <options=bold>--watch</> to auto-refresh every 5 s.</>');
+        }
+
         $this->line('');
     }
 
-    private function checkService(string $name, array $config): array
+    private function checkService(array $config): array
     {
-        // yner_main checks itself — always up if this command runs
+        // yner_main — if this command is running, Laravel is alive
         if ($config['url'] === null) {
             return ['UP', 0];
         }
 
         $start = microtime(true);
-
         try {
-            $response = Http::timeout(2)->get("{$config['url']}/health");
-            $latency  = (int) ((microtime(true) - $start) * 1000);
-
-            if ($response->successful() && ($response->json('status') === 'ok')) {
+            $resp    = Http::timeout(2)->get("{$config['url']}/health");
+            $latency = (int) ((microtime(true) - $start) * 1000);
+            if ($resp->successful() && $resp->json('status') === 'ok') {
                 return ['UP', $latency];
             }
         } catch (\Throwable) {
-            // service unreachable
+            // unreachable
         }
 
         return ['DOWN', 0];

@@ -1,0 +1,7 @@
+# ML / data — installed in Phase 7 when models are built
+# Run: pip install -r requirements-ml.txt
+-r requirements.txt
+scikit-learn==1.6.0
+pandas==2.2.3
+numpy==2.2.0
+joblib==1.4.2

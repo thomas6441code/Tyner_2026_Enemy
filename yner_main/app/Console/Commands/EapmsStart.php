@@ -8,11 +8,11 @@ use Illuminate\Support\Facades\Http;
 class EapmsStart extends Command
 {
     protected $signature = 'eapms:start
-        {--port=8000    : Port for yner_main (Laravel)}
-        {--ai-port=8001 : Port for ai-service}
+        {--port=8000     : Port for yner_main (Laravel)}
+        {--ai-port=8001  : Port for ai-service}
         {--bio-port=8002 : Port for bio-service}
-        {--no-ai        : Skip starting ai-service}
-        {--no-bio       : Skip starting bio-service}';
+        {--no-ai         : Skip starting ai-service}
+        {--no-bio        : Skip starting bio-service}';
 
     protected $description = 'Start all EAPMS services and stream their status to the console';
 
@@ -38,91 +38,117 @@ class EapmsStart extends Command
             $port    = $this->option('ai-port');
             $dir     = $root . DIRECTORY_SEPARATOR . 'ai-service';
             $logFile = $logDir . DIRECTORY_SEPARATOR . 'ai-service.log';
-            $this->launchPythonService('ai-service', $dir, $port, $logFile);
-            $started[] = ['name' => 'ai-service', 'port' => $port, 'log' => $logFile, 'color' => 'cyan'];
+            $this->ensureVenv('ai-service', $dir);
+            $this->launchService('ai-service', $dir, (int) $port, $logFile);
+            $started[] = ['name' => 'ai-service', 'port' => (int) $port, 'log' => $logFile];
         }
 
         if (! $this->option('no-bio')) {
             $port    = $this->option('bio-port');
             $dir     = $root . DIRECTORY_SEPARATOR . 'bio-service';
             $logFile = $logDir . DIRECTORY_SEPARATOR . 'bio-service.log';
-            $this->launchPythonService('bio-service', $dir, $port, $logFile);
-            $started[] = ['name' => 'bio-service', 'port' => $port, 'log' => $logFile, 'color' => 'magenta'];
+            $this->ensureVenv('bio-service', $dir);
+            $this->launchService('bio-service', $dir, (int) $port, $logFile);
+            $started[] = ['name' => 'bio-service', 'port' => (int) $port, 'log' => $logFile];
         }
 
-        // Give Python services a moment to boot
         if ($started) {
             $this->line(' <fg=gray>Waiting for Python services to boot...</>');
-            sleep(2);
+            sleep(3);
         }
 
-        // Show initial status snapshot
         $this->renderStatusTable($started);
 
-        // Start Laravel serve in the foreground (keeps the terminal alive and streams its output)
         $mainPort = $this->option('port');
         $this->line('');
-        $this->line(" <fg=green;options=bold>▶ Starting yner_main on port {$mainPort} (foreground — Ctrl+C to stop all)</>  ");
+        $this->line(" <fg=green;options=bold>▶ yner_main starting on port {$mainPort} (foreground — Ctrl+C to stop all)</>");
         $this->line('');
 
-        $artisan = PHP_BINARY . ' ' . base_path('artisan');
-        passthru("{$artisan} serve --host=0.0.0.0 --port={$mainPort}");
+        passthru(PHP_BINARY . ' ' . base_path('artisan') . " serve --host=0.0.0.0 --port={$mainPort}");
 
         return self::SUCCESS;
     }
 
-    // ── service launcher ──────────────────────────────────────────────────────
+    // ── venv management ───────────────────────────────────────────────────────
 
-    private function launchPythonService(string $name, string $dir, int|string $port, string $logFile): void
+    private function ensureVenv(string $name, string $dir): void
     {
-        $uvicorn = $this->uvicornBin($dir);
+        $venvDir  = $dir . DIRECTORY_SEPARATOR . 'venv';
+        $isWin    = PHP_OS_FAMILY === 'Windows';
+        $pyBin    = $isWin ? 'python' : 'python3';
 
-        if (PHP_OS_FAMILY === 'Windows') {
-            $cmd = "cmd /c \"cd /d {$dir} && {$uvicorn} main:app --host 0.0.0.0 --port {$port} >> \"{$logFile}\" 2>&1\"";
-            pclose(popen("start /B {$cmd}", 'r'));
-        } else {
-            $cmd = "cd {$dir} && {$uvicorn} main:app --host 0.0.0.0 --port {$port} >> {$logFile} 2>&1 &";
-            shell_exec($cmd);
+        if (! is_dir($venvDir)) {
+            $this->line(" <fg=yellow>  [{$name}] No venv found — creating (first time only, please wait)...</>");
+            shell_exec("{$pyBin} -m venv \"{$venvDir}\"");
         }
 
-        $this->line(" <fg=gray>  [{$name}] started → log: storage/logs/services/{$name}.log</>");
+        $pipBin = $isWin
+            ? "{$venvDir}\\Scripts\\pip.exe"
+            : "{$venvDir}/bin/pip";
+
+        // Check if uvicorn is installed as a proxy for whether requirements were run
+        $uvicorn = $isWin
+            ? "{$venvDir}\\Scripts\\uvicorn.exe"
+            : "{$venvDir}/bin/uvicorn";
+
+        if (! file_exists($uvicorn)) {
+            $this->line(" <fg=yellow>  [{$name}] Installing requirements...</>");
+            $req = $dir . DIRECTORY_SEPARATOR . 'requirements.txt';
+            shell_exec("\"{$pipBin}\" install -r \"{$req}\" --quiet 2>&1");
+            $this->line(" <fg=green>  [{$name}] Dependencies installed.</>");
+        }
     }
 
-    private function uvicornBin(string $serviceDir): string
-    {
-        $win  = $serviceDir . '/venv/Scripts/uvicorn.exe';
-        $unix = $serviceDir . '/venv/bin/uvicorn';
+    // ── process launcher ──────────────────────────────────────────────────────
 
-        if (file_exists($win))  return "\"{$win}\"";
+    private function launchService(string $name, string $dir, int $port, string $logFile): void
+    {
+        $python = $this->pythonBin($dir);
+
+        if (PHP_OS_FAMILY === 'Windows') {
+            // Write a batch file to avoid nested-quote hell with start /B
+            $bat = sys_get_temp_dir() . "\\eapms_{$name}.bat";
+            $batContent = "@echo off\r\ncd /d \"{$dir}\"\r\n\"{$python}\" -m uvicorn main:app --host 0.0.0.0 --port {$port} >> \"{$logFile}\" 2>&1\r\n";
+            file_put_contents($bat, $batContent);
+            pclose(popen("start /B \"\" \"{$bat}\"", 'r'));
+        } else {
+            shell_exec("cd \"{$dir}\" && \"{$python}\" -m uvicorn main:app --host 0.0.0.0 --port {$port} >> \"{$logFile}\" 2>&1 &");
+        }
+
+        $this->line(" <fg=gray>  [{$name}] started on :{$port} → logs/services/{$name}.log</>");
+    }
+
+    private function pythonBin(string $serviceDir): string
+    {
+        $win  = $serviceDir . '\\venv\\Scripts\\python.exe';
+        $unix = $serviceDir . '/venv/bin/python';
+
+        if (file_exists($win))  return $win;
         if (file_exists($unix)) return $unix;
 
-        return 'uvicorn';
+        return PHP_OS_FAMILY === 'Windows' ? 'python' : 'python3';
     }
 
-    // ── status table ─────────────────────────────────────────────────────────
+    // ── status table ──────────────────────────────────────────────────────────
 
     private function renderStatusTable(array $pythonServices): void
     {
-        $rows   = [];
-        $allUp  = true;
+        $rows = [];
 
-        // yner_main is always up (we ARE running inside it)
         $rows[] = [
-            "<fg=green>●</> <fg=green;options=bold>UP</>",
-            "<options=bold>yner_main</>",
-            ":{$this->option('port')}",
-            "running",
+            '<fg=green>● UP  </>',
+            '<options=bold>yner_main</>',
+            ':' . $this->option('port'),
+            'running (foreground)',
         ];
 
         foreach ($pythonServices as $svc) {
             $up = $this->ping("http://127.0.0.1:{$svc['port']}/health");
-            if (! $up) $allUp = false;
-            $statusIcon  = $up ? "<fg=green>●</> <fg=green;options=bold>UP  </>" : "<fg=red>●</> <fg=red;options=bold>DOWN</>";
             $rows[] = [
-                $statusIcon,
+                $up ? '<fg=green>● UP  </>' : '<fg=red>● DOWN</>',
                 "<options=bold>{$svc['name']}</>",
-                ":{$svc['port']}",
-                $up ? "running" : "starting...",
+                ':' . $svc['port'],
+                $up ? 'running' : 'starting… (check logs/services/)',
             ];
         }
 
@@ -130,8 +156,9 @@ class EapmsStart extends Command
         $this->line(' <fg=cyan;options=bold>EAPMS Service Status</>');
         $this->table(['Status', 'Service', 'Port', 'Info'], $rows);
 
-        if (! $allUp) {
-            $this->line(' <fg=yellow>Some services are still starting. Run <options=bold>php artisan eapms:status</> to check again.</>');
+        $anyDown = collect($pythonServices)->contains(fn ($s) => ! $this->ping("http://127.0.0.1:{$s['port']}/health"));
+        if ($anyDown) {
+            $this->line(' <fg=yellow>Tip: run <options=bold>php artisan eapms:status --watch</> in a separate terminal to monitor.</>');
         }
     }
 
@@ -145,7 +172,7 @@ class EapmsStart extends Command
         }
     }
 
-    // ── helpers ──────────────────────────────────────────────────────────────
+    // ── helpers ───────────────────────────────────────────────────────────────
 
     private function printBanner(): void
     {
@@ -154,12 +181,12 @@ class EapmsStart extends Command
         $this->line(' <fg=cyan;options=bold>║    EAPMS  ·  Employee Attendance & Permission Mgmt   ║</>');
         $this->line(' <fg=cyan;options=bold>╚══════════════════════════════════════════════════════╝</>');
         $this->line('');
-        $this->line("  <fg=green>●</> yner_main (Laravel)   http://127.0.0.1:{$this->option('port')}");
+        $this->line("  <fg=green>●</> yner_main  http://127.0.0.1:{$this->option('port')}");
         if (! $this->option('no-ai')) {
-            $this->line("  <fg=cyan>●</> ai-service (FastAPI)   http://127.0.0.1:{$this->option('ai-port')}");
+            $this->line("  <fg=cyan>●</> ai-service  http://127.0.0.1:{$this->option('ai-port')}");
         }
         if (! $this->option('no-bio')) {
-            $this->line("  <fg=magenta>●</> bio-service (FastAPI)  http://127.0.0.1:{$this->option('bio-port')}");
+            $this->line("  <fg=magenta>●</> bio-service  http://127.0.0.1:{$this->option('bio-port')}");
         }
         $this->line('');
     }

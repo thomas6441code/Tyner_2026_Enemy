@@ -13,6 +13,8 @@ export interface SharedData {
         viewDepartments: boolean;
         viewEmployees: boolean;
         viewWorkSchedules: boolean;
+        viewBiometricDevices: boolean;
+        viewDeviceEnrollments: boolean;
     };
     flash: {
         status: string | null;

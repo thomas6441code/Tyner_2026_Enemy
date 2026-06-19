@@ -1,4 +1,5 @@
 from datetime import datetime
+
 from .base import BiometricDriver, PunchLog
 
 
@@ -12,15 +13,39 @@ class ZKTecoDriver(BiometricDriver):
         self._conn = None
 
     def connect(self) -> None:
-        # Phase 3: import zk; self._conn = ZK(self.host, self.port).connect()
-        raise NotImplementedError("ZKTeco driver — implemented in Phase 3")
+        from zk import ZK
+
+        try:
+            self._conn = ZK(self.host, port=self.port, timeout=5).connect()
+        except Exception as exc:
+            self._conn = None
+            raise ConnectionError(
+                f"Failed to connect to ZKTeco device {self.host}:{self.port}: {exc}"
+            ) from exc
 
     def disconnect(self) -> None:
         if self._conn:
             self._conn.disconnect()
+            self._conn = None
 
     def fetch_logs(self, since: datetime) -> list[PunchLog]:
-        raise NotImplementedError("ZKTeco driver — implemented in Phase 3")
+        if self._conn is None:
+            raise RuntimeError("Driver not connected")
+
+        records = self._conn.get_attendance()
+        return [
+            PunchLog(
+                device_user_id=str(record.user_id),
+                punched_at=record.timestamp,
+                device_serial=self.serial,
+            )
+            for record in records
+            if record.timestamp >= since
+        ]
 
     def health(self) -> dict:
-        return {"driver": "zkteco", "host": self.host, "status": "not_connected"}
+        return {
+            "driver": "zkteco",
+            "host": self.host,
+            "status": "connected" if self._conn is not None else "not_connected",
+        }

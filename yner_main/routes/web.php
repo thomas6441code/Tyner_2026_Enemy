@@ -1,7 +1,9 @@
 <?php
 
+use App\Http\Controllers\BiometricDeviceController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DepartmentController;
+use App\Http\Controllers\DeviceEnrollmentController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\WorkScheduleController;
@@ -24,6 +26,8 @@ Route::middleware('auth')->group(function () {
     Route::resource('departments', DepartmentController::class)->except('show');
     Route::resource('work-schedules', WorkScheduleController::class)->except('show');
     Route::resource('employees', EmployeeController::class);
+    Route::resource('biometric-devices', BiometricDeviceController::class)->except('show');
+    Route::resource('device-enrollments', DeviceEnrollmentController::class)->except('show');
 });
 
 require __DIR__.'/auth.php';

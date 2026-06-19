@@ -27,6 +27,18 @@ export function AppSidebar() {
             active: route().current('work-schedules.*'),
             show: can.viewWorkSchedules,
         },
+        {
+            href: route('biometric-devices.index'),
+            label: 'Biometric Devices',
+            active: route().current('biometric-devices.*'),
+            show: can.viewBiometricDevices,
+        },
+        {
+            href: route('device-enrollments.index'),
+            label: 'Device Enrollments',
+            active: route().current('device-enrollments.*'),
+            show: can.viewDeviceEnrollments,
+        },
     ];
 
     return (

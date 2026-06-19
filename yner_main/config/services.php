@@ -35,4 +35,6 @@ return [
         ],
     ],
 
+    'internal_secret' => env('INTERNAL_API_SECRET'),
+
 ];

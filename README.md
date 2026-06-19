@@ -48,9 +48,18 @@ docker compose up --build
 cd yner_main
 cp .env.example .env && php artisan key:generate
 composer install
+npm install && npm run build
 php artisan migrate --seed
 php artisan serve
 ```
+
+Seeding creates the three roles (Admin, HR Officer, Employee), a sample department/work-schedule/employee set, and one login per role for local testing:
+
+| Role | Email | Password |
+|---|---|---|
+| Admin | `admin@eapms.test` | `password` |
+| HR Officer | `hr@eapms.test` | `password` |
+| Employee | `employee@eapms.test` | `password` |
 
 ### Python services
 ```bash
@@ -82,9 +91,9 @@ cd bio-service && pytest
 | Phase | Description | Status |
 |---|---|---|
 | 0 | Project setup & foundations | ✅ Done |
-| 1 | Requirements & system design | ⬜ Next |
-| 2 | Auth, RBAC & core domain | ⬜ |
-| 3 | Biometric device integration | ⬜ |
+| 1 | Requirements & system design | ⬜ |
+| 2 | Auth, RBAC & core domain | ✅ Done |
+| 3 | Biometric device integration | ⬜ Next |
 | 4 | Attendance computation engine | ⬜ |
 | 5 | HR permission & leave management | ⬜ |
 | 6 | Attendance ↔ permission sync | ⬜ |

@@ -14,7 +14,7 @@ class EapmsStatus extends Command
     private array $services = [
         'yner_main (Laravel)' => ['url' => null,                    'port' => 8000],
         'ai-service (FastAPI)' => ['url' => 'http://127.0.0.1:8001', 'port' => 8001],
-        'bio-service (FastAPI)'=> ['url' => 'http://127.0.0.1:8002', 'port' => 8002],
+        'bio-service (FastAPI)' => ['url' => 'http://127.0.0.1:8002', 'port' => 8002],
     ];
 
     public function handle(): int
@@ -43,19 +43,19 @@ class EapmsStatus extends Command
 
     private function renderDashboard(): void
     {
-        $rows    = [];
-        $allUp   = true;
+        $rows = [];
+        $allUp = true;
         $anyDown = false;
 
         foreach ($this->services as $name => $config) {
             [$status, $latency] = $this->checkService($config);
 
             if ($status !== 'UP') {
-                $allUp   = false;
+                $allUp = false;
                 $anyDown = true;
             }
 
-            $statusCell  = $status === 'UP'
+            $statusCell = $status === 'UP'
                 ? '<fg=green>● UP  </>'
                 : '<fg=red>● DOWN</>';
             $latencyCell = $status === 'UP' && $latency > 0
@@ -67,7 +67,7 @@ class EapmsStatus extends Command
 
         $this->line('');
         $this->line(' <fg=cyan;options=bold>EAPMS — Employee Attendance & Permission Management System</>');
-        $this->line(' <fg=gray>' . now()->format('Y-m-d H:i:s') . '</>');
+        $this->line(' <fg=gray>'.now()->format('Y-m-d H:i:s').'</>');
         $this->line('');
         $this->table(['Status', 'Service', 'Port', 'Latency'], $rows);
 
@@ -95,7 +95,7 @@ class EapmsStatus extends Command
 
         $start = microtime(true);
         try {
-            $resp    = Http::timeout(2)->get("{$config['url']}/health");
+            $resp = Http::timeout(2)->get("{$config['url']}/health");
             $latency = (int) ((microtime(true) - $start) * 1000);
             if ($resp->successful() && $resp->json('status') === 'ok') {
                 return ['UP', $latency];

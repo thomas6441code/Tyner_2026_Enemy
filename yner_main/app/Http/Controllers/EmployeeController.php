@@ -20,33 +20,40 @@ class EmployeeController extends Controller
     {
         $this->authorize('viewAny', Employee::class);
 
-        $employees = Employee::with(['department', 'workSchedule'])
+        $employees = Employee::with(['department', 'workSchedule', 'user'])
             ->orderBy('last_name')
             ->paginate(15)
             ->through(fn (Employee $employee) => [
                 'id' => $employee->id,
                 'employee_code' => $employee->employee_code,
                 'fullName' => $employee->fullName(),
+                'first_name' => $employee->first_name,
+                'last_name' => $employee->last_name,
+                'phone' => $employee->phone,
+                'hire_date' => $employee->hire_date?->format('Y-m-d'),
                 'status' => $employee->status,
+                'department_id' => $employee->department_id,
+                'work_schedule_id' => $employee->work_schedule_id,
+                'user_id' => $employee->user_id,
                 'department' => $employee->department ? ['name' => $employee->department->name] : null,
                 'workSchedule' => $employee->workSchedule ? ['name' => $employee->workSchedule->name] : null,
+                'user' => $employee->user ? ['email' => $employee->user->email] : null,
             ]);
 
-        return Inertia::render('employees/index', [
+        $total = Employee::count();
+        $active = Employee::where('status', 'active')->count();
+
+        return Inertia::render('employees/index', $this->formData() + [
             'employees' => $employees,
+            'stats' => [
+                'total' => $total,
+                'active' => $active,
+                'inactive' => max($total - $active, 0),
+                'unlinked' => Employee::whereNull('user_id')->count(),
+            ],
             'actions' => $this->actions($request),
             'status' => session('status'),
         ]);
-    }
-
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create(): Response
-    {
-        $this->authorize('create', Employee::class);
-
-        return Inertia::render('employees/create', $this->formData());
     }
 
     /**
@@ -61,56 +68,6 @@ class EmployeeController extends Controller
         Employee::create($validated);
 
         return redirect()->route('employees.index')->with('status', 'Employee created.');
-    }
-
-    /**
-     * Display the specified resource.
-     */
-    public function show(Request $request, Employee $employee): Response
-    {
-        $this->authorize('view', $employee);
-
-        $employee->load(['department', 'workSchedule', 'user']);
-
-        return Inertia::render('employees/show', [
-            'employee' => [
-                'id' => $employee->id,
-                'employee_code' => $employee->employee_code,
-                'fullName' => $employee->fullName(),
-                'phone' => $employee->phone,
-                'hire_date' => $employee->hire_date?->format('Y-m-d'),
-                'status' => $employee->status,
-                'department' => $employee->department ? ['name' => $employee->department->name] : null,
-                'workSchedule' => $employee->workSchedule ? ['name' => $employee->workSchedule->name] : null,
-                'user' => $employee->user ? ['email' => $employee->user->email] : null,
-            ],
-            'actions' => [
-                'update' => $request->user()->can('update', $employee),
-            ],
-        ]);
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(Employee $employee): Response
-    {
-        $this->authorize('update', $employee);
-
-        return Inertia::render('employees/edit', $this->formData($employee) + [
-            'employee' => [
-                'id' => $employee->id,
-                'employee_code' => $employee->employee_code,
-                'first_name' => $employee->first_name,
-                'last_name' => $employee->last_name,
-                'phone' => $employee->phone,
-                'hire_date' => $employee->hire_date?->format('Y-m-d'),
-                'status' => $employee->status,
-                'department_id' => $employee->department_id,
-                'work_schedule_id' => $employee->work_schedule_id,
-                'user_id' => $employee->user_id,
-            ],
-        ]);
     }
 
     /**

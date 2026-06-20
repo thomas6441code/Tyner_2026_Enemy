@@ -1,45 +1,89 @@
 import { Link, router, usePage } from '@inertiajs/react';
+import { Bell, Menu, MessageSquare, Search } from 'lucide-react';
 import { route } from 'ziggy-js';
 
-import AppLogo from '@/components/app-logo';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import {
     DropdownMenu,
     DropdownMenuContent,
     DropdownMenuItem,
+    DropdownMenuLabel,
+    DropdownMenuSeparator,
     DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import type { SharedData } from '@/types';
 
-export function AppHeader() {
+export function AppHeader({ onMenuClick }: { onMenuClick: () => void }) {
     const { auth } = usePage<SharedData>().props;
     const user = auth.user;
+    const role = user?.roles?.[0];
 
     return (
-        <header className="flex h-14 items-center justify-between border-b bg-background px-4">
-            <Link href={route('dashboard')} className="flex items-center gap-2 font-semibold">
-                <AppLogo className="h-6 w-6" />
-                EAPMS
-            </Link>
+        <header className="sticky top-0 z-30 flex h-16 items-center gap-3 bg-background/80 px-4 shadow-soft backdrop-blur md:gap-4 md:px-6">
+            <button
+                type="button"
+                onClick={onMenuClick}
+                aria-label="Open menu"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-muted-foreground hover:bg-accent hover:text-foreground md:hidden"
+            >
+                <Menu className="h-5 w-5" />
+            </button>
 
-            {user && (
-                <DropdownMenu>
-                    <DropdownMenuTrigger className="flex items-center gap-2 rounded-md px-2 py-1 text-sm hover:bg-accent">
-                        <Avatar className="h-7 w-7">
-                            <AvatarFallback>{user.name.charAt(0).toUpperCase()}</AvatarFallback>
-                        </Avatar>
-                        {user.name}
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                        <DropdownMenuItem asChild>
-                            <Link href={route('profile.edit')}>Profile</Link>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem onSelect={() => router.post(route('logout'))}>
-                            Log Out
-                        </DropdownMenuItem>
-                    </DropdownMenuContent>
-                </DropdownMenu>
-            )}
+            <div className="relative w-full max-w-sm">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <input
+                    type="search"
+                    placeholder="Search anything…"
+                    className="h-9 w-full rounded-lg border border-input bg-muted/50 pl-9 pr-3 text-sm outline-none transition-colors placeholder:text-muted-foreground focus:border-ring focus:bg-background focus:ring-1 focus:ring-ring"
+                />
+            </div>
+
+            <div className="ml-auto flex items-center gap-1">
+                <button
+                    type="button"
+                    className="relative flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                    aria-label="Messages"
+                >
+                    <MessageSquare className="h-[18px] w-[18px]" />
+                </button>
+                <button
+                    type="button"
+                    className="relative flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+                    aria-label="Notifications"
+                >
+                    <Bell className="h-[18px] w-[18px]" />
+                    <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-destructive" />
+                </button>
+
+                {user && (
+                    <DropdownMenu>
+                        <DropdownMenuTrigger className="ml-1 flex items-center gap-2.5 rounded-lg py-1 pl-1 pr-2 text-left transition-colors hover:bg-accent">
+                            <Avatar className="h-8 w-8">
+                                <AvatarFallback className="bg-primary/10 text-sm font-semibold text-primary">
+                                    {user.name.charAt(0).toUpperCase()}
+                                </AvatarFallback>
+                            </Avatar>
+                            <div className="hidden leading-tight sm:block">
+                                <div className="text-sm font-semibold">{user.name}</div>
+                                {role && <div className="text-xs text-muted-foreground">{role}</div>}
+                            </div>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-48">
+                            <DropdownMenuLabel className="font-normal">
+                                <div className="text-sm font-semibold">{user.name}</div>
+                                <div className="truncate text-xs text-muted-foreground">{user.email}</div>
+                            </DropdownMenuLabel>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem asChild>
+                                <Link href={route('profile.edit')}>Profile</Link>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onSelect={() => router.post(route('logout'))}>
+                                Log Out
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                )}
+            </div>
         </header>
     );
 }

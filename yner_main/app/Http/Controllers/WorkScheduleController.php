@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Employee;
 use App\Models\WorkSchedule;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -30,19 +31,15 @@ class WorkScheduleController extends Controller
 
         return Inertia::render('work-schedules/index', [
             'workSchedules' => $workSchedules,
+            'stats' => [
+                'schedules' => WorkSchedule::count(),
+                'employees' => Employee::whereNotNull('work_schedule_id')->count(),
+                'avgGrace' => (int) round(WorkSchedule::avg('grace_period_minutes') ?? 0),
+                'unused' => WorkSchedule::doesntHave('employees')->count(),
+            ],
             'actions' => $this->actions($request),
             'status' => session('status'),
         ]);
-    }
-
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create(): Response
-    {
-        $this->authorize('create', WorkSchedule::class);
-
-        return Inertia::render('work-schedules/create');
     }
 
     /**
@@ -62,24 +59,6 @@ class WorkScheduleController extends Controller
         WorkSchedule::create($validated);
 
         return redirect()->route('work-schedules.index')->with('status', 'Work schedule created.');
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(WorkSchedule $workSchedule): Response
-    {
-        $this->authorize('update', $workSchedule);
-
-        return Inertia::render('work-schedules/edit', [
-            'workSchedule' => [
-                'id' => $workSchedule->id,
-                'name' => $workSchedule->name,
-                'start_time' => Carbon::parse($workSchedule->start_time)->format('H:i'),
-                'end_time' => Carbon::parse($workSchedule->end_time)->format('H:i'),
-                'grace_period_minutes' => $workSchedule->grace_period_minutes,
-            ],
-        ]);
     }
 
     /**

@@ -1,7 +1,12 @@
-import { Head, Link, router } from '@inertiajs/react';
+import { Head, router } from '@inertiajs/react';
+import { Building2, Inbox, Pencil, Plus, Sigma, Trash2, Users } from 'lucide-react';
+import { useState } from 'react';
 import { route } from 'ziggy-js';
 
+import { ConfirmDialog } from '@/components/confirm-dialog';
+import { DepartmentFormDialog } from '@/components/department-form-dialog';
 import { Pagination } from '@/components/pagination';
+import { StatCard } from '@/components/stat-card';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -19,35 +24,45 @@ interface DepartmentsIndexProps {
         data: Department[];
         links: { url: string | null; label: string; active: boolean }[];
     };
+    stats: { departments: number; employees: number; avgPerDepartment: number; empty: number };
     actions: { create: boolean; update: boolean; delete: boolean };
     status?: string;
 }
 
-export default function DepartmentsIndex({ departments, actions, status }: DepartmentsIndexProps) {
-    const destroy = (department: Department) => {
-        if (confirm('Delete this department?')) {
-            router.delete(route('departments.destroy', department.id));
-        }
-    };
+export default function DepartmentsIndex({ departments, stats, actions, status }: DepartmentsIndexProps) {
+    const [dialog, setDialog] = useState<{ record: Department | null } | null>(null);
+    const [deleting, setDeleting] = useState<Department | null>(null);
 
     return (
-        <AppLayout
-            header={
-                <div className="flex items-center justify-between">
-                    <h2 className="text-lg font-semibold">Departments</h2>
-                    {actions.create && (
-                        <Button asChild size="sm">
-                            <Link href={route('departments.create')}>New Department</Link>
-                        </Button>
-                    )}
-                </div>
-            }
-        >
+        <AppLayout>
             <Head title="Departments" />
 
-            {status && <div className="mb-4 text-sm font-medium text-emerald-600">{status}</div>}
+            <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                    <h1 className="text-2xl font-bold tracking-tight">Departments</h1>
+                    <p className="text-sm text-muted-foreground">Organise employees into departments</p>
+                </div>
+                {actions.create && (
+                    <Button onClick={() => setDialog({ record: null })}>
+                        <Plus className="h-4 w-4" /> New Department
+                    </Button>
+                )}
+            </div>
 
-            <Card>
+            <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                <StatCard icon={Building2} iconClass="bg-blue-50 text-blue-600" label="Departments" value={stats.departments} />
+                <StatCard icon={Users} iconClass="bg-emerald-50 text-emerald-600" label="Employees Assigned" value={stats.employees} />
+                <StatCard icon={Sigma} iconClass="bg-violet-50 text-violet-600" label="Avg per Department" value={stats.avgPerDepartment} />
+                <StatCard icon={Inbox} iconClass="bg-amber-50 text-amber-600" label="Empty Departments" value={stats.empty} />
+            </div>
+
+            {status && (
+                <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-700">
+                    {status}
+                </div>
+            )}
+
+            <Card className="mt-6">
                 <CardContent className="p-0">
                     <Table>
                         <TableHeader>
@@ -61,31 +76,37 @@ export default function DepartmentsIndex({ departments, actions, status }: Depar
                         <TableBody>
                             {departments.data.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={4} className="py-8 text-center text-muted-foreground">
+                                    <TableCell colSpan={4} className="py-10 text-center text-muted-foreground">
                                         No departments yet.
                                     </TableCell>
                                 </TableRow>
                             ) : (
                                 departments.data.map((department) => (
                                     <TableRow key={department.id}>
-                                        <TableCell>{department.name}</TableCell>
+                                        <TableCell className="font-medium">{department.name}</TableCell>
                                         <TableCell className="text-muted-foreground">
                                             {department.description}
                                         </TableCell>
                                         <TableCell>{department.employees_count}</TableCell>
                                         <TableCell className="text-right">
                                             {actions.update && (
-                                                <Button asChild variant="outline" size="sm" className="mr-2">
-                                                    <Link href={route('departments.edit', department.id)}>Edit</Link>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="mr-1"
+                                                    onClick={() => setDialog({ record: department })}
+                                                >
+                                                    <Pencil className="h-4 w-4" /> Edit
                                                 </Button>
                                             )}
                                             {actions.delete && (
                                                 <Button
-                                                    variant="outline"
+                                                    variant="ghost"
                                                     size="sm"
-                                                    onClick={() => destroy(department)}
+                                                    className="text-destructive hover:text-destructive"
+                                                    onClick={() => setDeleting(department)}
                                                 >
-                                                    Delete
+                                                    <Trash2 className="h-4 w-4" /> Delete
                                                 </Button>
                                             )}
                                         </TableCell>
@@ -100,6 +121,22 @@ export default function DepartmentsIndex({ departments, actions, status }: Depar
             <div className="mt-3">
                 <Pagination links={departments.links} />
             </div>
+
+            {dialog && <DepartmentFormDialog record={dialog.record} onClose={() => setDialog(null)} />}
+
+            {deleting && (
+                <ConfirmDialog
+                    title="Delete department"
+                    description={`Delete "${deleting.name}"? This action cannot be undone.`}
+                    onCancel={() => setDeleting(null)}
+                    onConfirm={() =>
+                        router.delete(route('departments.destroy', deleting.id), {
+                            preserveScroll: true,
+                            onSuccess: () => setDeleting(null),
+                        })
+                    }
+                />
+            )}
         </AppLayout>
     );
 }

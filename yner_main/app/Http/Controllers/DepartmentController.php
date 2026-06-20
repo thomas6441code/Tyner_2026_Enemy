@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Department;
+use App\Models\Employee;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -19,21 +20,20 @@ class DepartmentController extends Controller
 
         $departments = Department::withCount('employees')->orderBy('name')->paginate(15);
 
+        $totalDepartments = Department::count();
+        $assigned = Employee::whereNotNull('department_id')->count();
+
         return Inertia::render('departments/index', [
             'departments' => $departments,
+            'stats' => [
+                'departments' => $totalDepartments,
+                'employees' => $assigned,
+                'avgPerDepartment' => $totalDepartments > 0 ? round($assigned / $totalDepartments, 1) : 0,
+                'empty' => Department::doesntHave('employees')->count(),
+            ],
             'actions' => $this->actions($request),
             'status' => session('status'),
         ]);
-    }
-
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create(): Response
-    {
-        $this->authorize('create', Department::class);
-
-        return Inertia::render('departments/create');
     }
 
     /**
@@ -51,18 +51,6 @@ class DepartmentController extends Controller
         Department::create($validated);
 
         return redirect()->route('departments.index')->with('status', 'Department created.');
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(Department $department): Response
-    {
-        $this->authorize('update', $department);
-
-        return Inertia::render('departments/edit', [
-            'department' => $department,
-        ]);
     }
 
     /**

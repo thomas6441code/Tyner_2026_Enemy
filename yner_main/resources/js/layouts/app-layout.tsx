@@ -1,4 +1,4 @@
-import { PropsWithChildren, ReactNode } from 'react';
+import { PropsWithChildren, ReactNode, useState } from 'react';
 
 import { AppHeader } from '@/components/app-header';
 import { AppSidebar } from '@/components/app-sidebar';
@@ -8,15 +8,17 @@ interface AppLayoutProps {
 }
 
 export default function AppLayout({ header, children }: PropsWithChildren<AppLayoutProps>) {
+    const [mobileNavOpen, setMobileNavOpen] = useState(false);
+
     return (
-        <div className="flex min-h-screen flex-col bg-background">
-            <AppHeader />
-            <div className="flex flex-1">
-                <AppSidebar />
-                <div className="flex-1">
-                    {header && <div className="border-b bg-background px-6 py-4">{header}</div>}
-                    <main className="px-6 py-6">{children}</main>
-                </div>
+        <div className="flex min-h-screen bg-canvas text-foreground">
+            <AppSidebar mobileOpen={mobileNavOpen} onClose={() => setMobileNavOpen(false)} />
+            <div className="flex min-w-0 flex-1 flex-col">
+                <AppHeader onMenuClick={() => setMobileNavOpen(true)} />
+                <main className="flex-1 px-4 py-6 md:px-8">
+                    {header && <div className="mb-6">{header}</div>}
+                    {children}
+                </main>
             </div>
         </div>
     );

@@ -1,4 +1,5 @@
 import { Head } from '@inertiajs/react';
+import { UserCheck, Users } from 'lucide-react';
 
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -18,20 +19,35 @@ interface HrDashboardProps {
 
 export default function HrDashboard({ employeeCount, activeEmployeeCount, departments }: HrDashboardProps) {
     return (
-        <AppLayout header={<h2 className="text-lg font-semibold">HR Dashboard</h2>}>
+        <AppLayout>
             <Head title="HR Dashboard" />
 
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div>
+                <h1 className="text-2xl font-bold tracking-tight">HR Dashboard</h1>
+                <p className="text-sm text-muted-foreground">Workforce at a glance</p>
+            </div>
+
+            <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 <Card>
-                    <CardContent className="p-4">
-                        <div className="text-sm text-muted-foreground">Employees</div>
-                        <div className="text-2xl font-semibold">{employeeCount}</div>
+                    <CardContent className="flex items-center gap-4 p-5">
+                        <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-violet-50 text-violet-600">
+                            <Users className="h-5 w-5" />
+                        </span>
+                        <div>
+                            <div className="text-2xl font-bold tracking-tight">{employeeCount}</div>
+                            <div className="text-sm text-muted-foreground">Employees</div>
+                        </div>
                     </CardContent>
                 </Card>
                 <Card>
-                    <CardContent className="p-4">
-                        <div className="text-sm text-muted-foreground">Active Employees</div>
-                        <div className="text-2xl font-semibold">{activeEmployeeCount}</div>
+                    <CardContent className="flex items-center gap-4 p-5">
+                        <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+                            <UserCheck className="h-5 w-5" />
+                        </span>
+                        <div>
+                            <div className="text-2xl font-bold tracking-tight">{activeEmployeeCount}</div>
+                            <div className="text-sm text-muted-foreground">Active Employees</div>
+                        </div>
                     </CardContent>
                 </Card>
             </div>
@@ -48,14 +64,14 @@ export default function HrDashboard({ employeeCount, activeEmployeeCount, depart
                         <TableBody>
                             {departments.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={2} className="py-8 text-center text-muted-foreground">
+                                    <TableCell colSpan={2} className="py-10 text-center text-muted-foreground">
                                         No departments yet.
                                     </TableCell>
                                 </TableRow>
                             ) : (
                                 departments.map((department) => (
                                     <TableRow key={department.id}>
-                                        <TableCell>{department.name}</TableCell>
+                                        <TableCell className="font-medium">{department.name}</TableCell>
                                         <TableCell>{department.employees_count}</TableCell>
                                     </TableRow>
                                 ))

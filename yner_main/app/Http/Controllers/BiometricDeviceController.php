@@ -17,23 +17,24 @@ class BiometricDeviceController extends Controller
     {
         $this->authorize('viewAny', BiometricDevice::class);
 
-        $devices = BiometricDevice::withCount('enrollments')->orderBy('name')->paginate(15);
+        $devices = BiometricDevice::withCount('enrollments')->orderBy('name')->paginate(15)
+            ->through(fn (BiometricDevice $device) => [
+                'id' => $device->id,
+                'name' => $device->name,
+                'type' => $device->type,
+                'serial' => $device->serial,
+                'host' => $device->host,
+                'port' => $device->port,
+                'username' => $device->username,
+                'status' => $device->status,
+                'enrollments_count' => $device->enrollments_count,
+            ]);
 
         return Inertia::render('biometric-devices/index', [
             'devices' => $devices,
             'actions' => $this->actions($request),
             'status' => session('status'),
         ]);
-    }
-
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create(): Response
-    {
-        $this->authorize('create', BiometricDevice::class);
-
-        return Inertia::render('biometric-devices/create');
     }
 
     /**
@@ -48,27 +49,6 @@ class BiometricDeviceController extends Controller
         BiometricDevice::create($validated);
 
         return redirect()->route('biometric-devices.index')->with('status', 'Device created.');
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(BiometricDevice $biometricDevice): Response
-    {
-        $this->authorize('update', $biometricDevice);
-
-        return Inertia::render('biometric-devices/edit', [
-            'device' => [
-                'id' => $biometricDevice->id,
-                'name' => $biometricDevice->name,
-                'type' => $biometricDevice->type,
-                'serial' => $biometricDevice->serial,
-                'host' => $biometricDevice->host,
-                'port' => $biometricDevice->port,
-                'username' => $biometricDevice->username,
-                'status' => $biometricDevice->status,
-            ],
-        ]);
     }
 
     /**

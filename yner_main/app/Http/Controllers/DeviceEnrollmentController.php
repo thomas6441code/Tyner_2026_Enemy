@@ -26,6 +26,8 @@ class DeviceEnrollmentController extends Controller
             ->through(fn (DeviceEnrollment $enrollment) => [
                 'id' => $enrollment->id,
                 'device_user_id' => $enrollment->device_user_id,
+                'biometric_device_id' => $enrollment->biometric_device_id,
+                'employee_id' => $enrollment->employee_id,
                 'employee' => $enrollment->employee ? ['fullName' => $enrollment->employee->fullName()] : null,
                 'biometricDevice' => $enrollment->biometricDevice ? [
                     'name' => $enrollment->biometricDevice->name,
@@ -33,21 +35,11 @@ class DeviceEnrollmentController extends Controller
                 ] : null,
             ]);
 
-        return Inertia::render('device-enrollments/index', [
+        return Inertia::render('device-enrollments/index', $this->formData() + [
             'enrollments' => $enrollments,
             'actions' => $this->actions($request),
             'status' => session('status'),
         ]);
-    }
-
-    /**
-     * Show the form for creating a new resource.
-     */
-    public function create(): Response
-    {
-        $this->authorize('create', DeviceEnrollment::class);
-
-        return Inertia::render('device-enrollments/create', $this->formData());
     }
 
     /**
@@ -62,23 +54,6 @@ class DeviceEnrollmentController extends Controller
         DeviceEnrollment::create($validated);
 
         return redirect()->route('device-enrollments.index')->with('status', 'Enrollment created.');
-    }
-
-    /**
-     * Show the form for editing the specified resource.
-     */
-    public function edit(DeviceEnrollment $deviceEnrollment): Response
-    {
-        $this->authorize('update', $deviceEnrollment);
-
-        return Inertia::render('device-enrollments/edit', $this->formData() + [
-            'enrollment' => [
-                'id' => $deviceEnrollment->id,
-                'biometric_device_id' => $deviceEnrollment->biometric_device_id,
-                'employee_id' => $deviceEnrollment->employee_id,
-                'device_user_id' => $deviceEnrollment->device_user_id,
-            ],
-        ]);
     }
 
     /**

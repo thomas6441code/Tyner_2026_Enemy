@@ -15,11 +15,16 @@ interface EmployeeDashboardProps {
 
 export default function EmployeeDashboard({ employee }: EmployeeDashboardProps) {
     return (
-        <AppLayout header={<h2 className="text-lg font-semibold">My Dashboard</h2>}>
+        <AppLayout>
             <Head title="My Dashboard" />
 
+            <div>
+                <h1 className="text-2xl font-bold tracking-tight">My Dashboard</h1>
+                <p className="text-sm text-muted-foreground">Your employment details</p>
+            </div>
+
             {employee ? (
-                <Card className="max-w-xl">
+                <Card className="mt-6 max-w-xl">
                     <CardContent className="grid grid-cols-3 gap-y-3 p-6 text-sm">
                         <div className="text-muted-foreground">Employee Code</div>
                         <div className="col-span-2">{employee.employee_code}</div>
@@ -39,7 +44,7 @@ export default function EmployeeDashboard({ employee }: EmployeeDashboardProps) 
                     </CardContent>
                 </Card>
             ) : (
-                <div className="max-w-xl rounded-md border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800">
+                <div className="mt-6 max-w-xl rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800">
                     No employee record is linked to your account yet. Contact HR to get set up.
                 </div>
             )}

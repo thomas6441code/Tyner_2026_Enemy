@@ -6,6 +6,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\DeviceEnrollmentController;
 use App\Http\Controllers\EmployeeController;
+use App\Http\Controllers\PermissionRequestController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\WorkScheduleController;
 use Illuminate\Support\Facades\Route;
@@ -33,6 +34,13 @@ Route::middleware('auth')->group(function () {
     Route::resource('departments', DepartmentController::class)->except(['show', 'create', 'edit']);
     Route::resource('work-schedules', WorkScheduleController::class)->except(['show', 'create', 'edit']);
     Route::resource('employees', EmployeeController::class)->except(['show', 'create', 'edit']);
+
+    Route::resource('permission-requests', PermissionRequestController::class)->except(['show', 'create', 'edit']);
+    Route::put('permission-requests/{permissionRequest}/review', [PermissionRequestController::class, 'review'])
+        ->name('permission-requests.review');
+    Route::get('permission-requests/{permissionRequest}/attachment', [PermissionRequestController::class, 'attachment'])
+        ->name('permission-requests.attachment');
+
     Route::resource('biometric-devices', BiometricDeviceController::class)->except(['show', 'create', 'edit']);
     Route::resource('device-enrollments', DeviceEnrollmentController::class)->except(['show', 'create', 'edit']);
 });

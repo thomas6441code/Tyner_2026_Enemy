@@ -2,6 +2,7 @@ import { Link, usePage } from '@inertiajs/react';
 import {
     Building2,
     CalendarCheck,
+    CalendarClock,
     Clock,
     Fingerprint,
     LayoutDashboard,
@@ -58,6 +59,13 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                     icon: CalendarCheck,
                     active: route().current('attendance.*'),
                     show: true,
+                },
+                {
+                    href: route('permission-requests.index'),
+                    label: 'Permissions',
+                    icon: CalendarClock,
+                    active: route().current('permission-requests.*'),
+                    show: can.viewPermissionRequests,
                 },
                 {
                     href: route('employees.index'),

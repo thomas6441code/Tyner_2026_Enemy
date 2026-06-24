@@ -12,6 +12,7 @@ export interface SharedData {
     can: {
         viewDepartments: boolean;
         viewEmployees: boolean;
+        viewPermissionRequests: boolean;
         viewWorkSchedules: boolean;
         viewBiometricDevices: boolean;
         viewDeviceEnrollments: boolean;

@@ -6,6 +6,7 @@ use App\Models\BiometricDevice;
 use App\Models\Department;
 use App\Models\DeviceEnrollment;
 use App\Models\Employee;
+use App\Models\PermissionRequest;
 use App\Models\WorkSchedule;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -55,6 +56,7 @@ class HandleInertiaRequests extends Middleware
             'can' => [
                 'viewDepartments' => $user?->can('viewAny', Department::class) ?? false,
                 'viewEmployees' => $user?->can('viewAny', Employee::class) ?? false,
+                'viewPermissionRequests' => $user?->can('viewAny', PermissionRequest::class) ?? false,
                 'viewWorkSchedules' => $user?->can('viewAny', WorkSchedule::class) ?? false,
                 'viewBiometricDevices' => $user?->can('viewAny', BiometricDevice::class) ?? false,
                 'viewDeviceEnrollments' => $user?->can('viewAny', DeviceEnrollment::class) ?? false,

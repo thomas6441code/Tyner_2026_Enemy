@@ -14,6 +14,10 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 
+import {
+    AttendanceCorrectionDialog,
+    type AttendanceCorrectionRecord,
+} from '@/components/attendance-correction-dialog';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -23,6 +27,7 @@ import { cn } from '@/lib/utils';
 interface Cell {
     type: 'hours' | 'partial' | 'leave' | 'absent' | 'active' | null;
     label: string | null;
+    record: AttendanceCorrectionRecord | null;
 }
 
 interface Row {
@@ -36,6 +41,12 @@ interface Row {
 interface Day {
     name: string;
     date: number;
+    iso: string;
+}
+
+interface StatusOption {
+    value: string;
+    label: string;
 }
 
 interface Stats {
@@ -52,6 +63,15 @@ interface AttendanceIndexProps {
     days: Day[];
     rows: Row[];
     stats: Stats;
+    statusOptions: StatusOption[];
+    canCorrect: boolean;
+    status?: string;
+}
+
+interface Correcting {
+    record: AttendanceCorrectionRecord;
+    employeeName: string;
+    dayLabel: string;
 }
 
 const AVATAR_TONES = [
@@ -120,9 +140,18 @@ function StatCard({ icon: Icon, iconClass, label, value, caption }: StatCardProp
     );
 }
 
-export default function AttendanceIndex({ weekLabel, days, rows, stats }: AttendanceIndexProps) {
+export default function AttendanceIndex({
+    weekLabel,
+    days,
+    rows,
+    stats,
+    statusOptions,
+    canCorrect,
+    status,
+}: AttendanceIndexProps) {
     const [chips, setChips] = useState(['Leave', 'Absent', 'Active']);
     const [query, setQuery] = useState('');
+    const [correcting, setCorrecting] = useState<Correcting | null>(null);
 
     const filtered = rows.filter(
         (row) =>
@@ -133,6 +162,12 @@ export default function AttendanceIndex({ weekLabel, days, rows, stats }: Attend
     return (
         <AppLayout>
             <Head title="Employee Attendance" />
+
+            {status && (
+                <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm text-emerald-700">
+                    {status}
+                </div>
+            )}
 
             <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
@@ -258,17 +293,39 @@ export default function AttendanceIndex({ weekLabel, days, rows, stats }: Attend
                                                     </div>
                                                 </div>
                                             </td>
-                                            {row.cells.map((cell, dayIndex) => (
-                                                <td
-                                                    key={dayIndex}
-                                                    className="border-t border-border px-3 py-3 align-top group-hover:bg-muted/40"
-                                                >
-                                                    <div className="mb-1.5 text-xs text-muted-foreground">
-                                                        {days[dayIndex]?.date}
-                                                    </div>
-                                                    <StatusPill cell={cell} />
-                                                </td>
-                                            ))}
+                                            {row.cells.map((cell, dayIndex) => {
+                                                const day = days[dayIndex];
+                                                const correctable = canCorrect && !!cell.record;
+
+                                                return (
+                                                    <td
+                                                        key={dayIndex}
+                                                        className="border-t border-border px-3 py-3 align-top group-hover:bg-muted/40"
+                                                    >
+                                                        <div className="mb-1.5 text-xs text-muted-foreground">
+                                                            {day?.date}
+                                                        </div>
+                                                        {correctable ? (
+                                                            <button
+                                                                type="button"
+                                                                title={`Correct ${row.name} — ${day?.name} ${day?.date}`}
+                                                                className="rounded-md text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                                                onClick={() =>
+                                                                    setCorrecting({
+                                                                        record: cell.record!,
+                                                                        employeeName: row.name,
+                                                                        dayLabel: `${day?.name} ${day?.date}`,
+                                                                    })
+                                                                }
+                                                            >
+                                                                <StatusPill cell={cell} />
+                                                            </button>
+                                                        ) : (
+                                                            <StatusPill cell={cell} />
+                                                        )}
+                                                    </td>
+                                                );
+                                            })}
                                         </tr>
                                     ))
                                 )}
@@ -277,6 +334,16 @@ export default function AttendanceIndex({ weekLabel, days, rows, stats }: Attend
                     </div>
                 </CardContent>
             </Card>
+
+            {correcting && (
+                <AttendanceCorrectionDialog
+                    record={correcting.record}
+                    employeeName={correcting.employeeName}
+                    dayLabel={correcting.dayLabel}
+                    statusOptions={statusOptions}
+                    onClose={() => setCorrecting(null)}
+                />
+            )}
         </AppLayout>
     );
 }

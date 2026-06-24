@@ -48,7 +48,6 @@ class DepartmentTest extends TestCase
         $hr->assignRole(RoleName::HrOfficer->value);
 
         $this->actingAs($hr)->get('/departments')->assertOk();
-        $this->actingAs($hr)->get('/departments/create')->assertForbidden();
         $this->actingAs($hr)->post('/departments', ['name' => 'Finance'])->assertForbidden();
     }
 

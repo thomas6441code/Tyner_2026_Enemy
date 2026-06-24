@@ -1,59 +1,61 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# EAPMS — Employee Attendance & Permission Management System
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+Final Year Project (IFM). Biometric attendance and HR permission/leave management are
+**synchronized** so approved absences never show as "Absent" in reports, with AI features
+layered on top: anomaly detection, absenteeism prediction (scikit-learn), and
+natural-language report summaries via the Claude API.
 
-## About Laravel
+## Architecture (three services, Docker Compose)
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+| Service        | Stack                       | Role                                                      | Port |
+| -------------- | --------------------------- | -------------------------------------------------------- | ---- |
+| `yner_main`    | Laravel 12 / PHP 8.2 + MySQL | Core app, business logic, REST API — single source of truth | 8000 |
+| `ai-service`   | Python / FastAPI            | scikit-learn ML + Claude API report summarization        | 8001 |
+| `bio-service`  | Python / FastAPI            | ZKTeco / Hikvision device-agnostic biometric adapter     | 8002 |
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+`yner_main` is the orchestrator. Internal service calls are signed with an
+`X-Internal-Secret` header. Frontend is Inertia.js + React + TypeScript + Tailwind v4 +
+hand-written shadcn/ui primitives.
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+## Quick start
 
-## Learning Laravel
+```powershell
+.\start.ps1                                  # Windows — starts all three services
+cd yner_main && php artisan eapms:start      # same, from yner_main
+cd yner_main && php artisan eapms:status     # health dashboard
+```
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+```bash
+cd yner_main
+composer install && npm install
+cp .env.example .env && php artisan key:generate
+php artisan migrate --seed                   # roles, sample org, a seeded week of attendance
+npm run build
+php artisan serve                            # http://localhost:8000
+php artisan test                             # PHPUnit (SQLite in-memory)
+```
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+Seeded logins (password `password`): `admin@eapms.test` (Admin), `hr@eapms.test` (HR Officer),
+`employee@eapms.test` (Employee).
 
-## Laravel Sponsors
+## Development progress
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+| Phase | Description | Status |
+| ----- | ----------- | ------ |
+| 0  | Project setup & foundations (3-service skeleton)            | ✅ Complete |
+| 1  | Requirements & system design (diagrams, spec)              | ⬜ Not started |
+| 2  | Authentication, RBAC & core domain                         | ✅ Complete |
+| 3  | Biometric device integration (device-agnostic adapter)     | ✅ Complete |
+| 4  | Attendance computation engine                              | ✅ Complete |
+| 5  | HR permission & leave management                           | ✅ Complete |
+| 6  | Attendance ⇄ permission synchronization (core innovation)  | ⬜ Pending |
+| 7  | AI service — internal ML (anomaly detection, prediction)   | ⬜ Pending |
+| 8  | AI service — Claude report summarization                   | ⬜ Pending |
+| 9  | Intelligent notification system                            | ⬜ Pending |
+| 10 | Reporting, dashboards & decision support                   | ⬜ Pending |
+| 11 | Testing & QA                                               | ⬜ Pending |
+| 12 | Documentation                                              | ⬜ Pending |
+| 13 | Deployment (Cloud VPS) & hardening                         | ⬜ Pending |
 
-### Premium Partners
-
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
-
-## Contributing
-
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
-
-## Code of Conduct
-
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
-
-## Security Vulnerabilities
-
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
-
-## License
-
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+See [`development_plan.md`](../development_plan.md) for the full plan and per-phase detail,
+and [`prompt/`](../prompt/) for the executed implementation plans.

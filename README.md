@@ -93,10 +93,10 @@ cd bio-service && pytest
 | 0 | Project setup & foundations | ✅ Done |
 | 1 | Requirements & system design | ⬜ |
 | 2 | Auth, RBAC & core domain | ✅ Done |
-| 3 | Biometric device integration | ⬜ Next |
-| 4 | Attendance computation engine | ⬜ |
-| 5 | HR permission & leave management | ⬜ |
-| 6 | Attendance ↔ permission sync | ⬜ |
+| 3 | Biometric device integration | ✅ Done |
+| 4 | Attendance computation engine | ✅ Done |
+| 5 | HR permission & leave management | ✅ Done |
+| 6 | Attendance ↔ permission sync | ⬜ Next |
 | 7 | AI: anomaly detection & prediction | ⬜ |
 | 8 | AI: Claude report summarization | ⬜ |
 | 9 | Notification system | ⬜ |

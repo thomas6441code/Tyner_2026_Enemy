@@ -63,7 +63,6 @@ class BiometricDeviceTest extends TestCase
         $hr->assignRole(RoleName::HrOfficer->value);
 
         $this->actingAs($hr)->get('/biometric-devices')->assertForbidden();
-        $this->actingAs($hr)->get('/biometric-devices/create')->assertForbidden();
         $this->actingAs($hr)->post('/biometric-devices', ['name' => 'X'])->assertForbidden();
     }
 

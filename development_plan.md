@@ -100,7 +100,7 @@ ERD/DFD/Use-Case diagrams are produced in Phase 1.
 
 ## Phased Development Plan
 
-### Phase 0 — Project Setup & Foundations
+### Phase 0 — Project Setup & Foundations ✅ **COMPLETE**
 
 **Goal:** Reproducible skeleton for all three services.
 
@@ -111,7 +111,9 @@ ERD/DFD/Use-Case diagrams are produced in Phase 1.
 - Coding standards (Pint/PHP-CS-Fixer, Black/Ruff), basic CI (lint + test).
 - **Deliverable:** running empty stack, one command up. _(Maps: methodology 6.3, tooling 6.5.12–6.5.14)_
 
-### Phase 1 — Requirements & System Design (documentation artifacts)
+### Phase 1 — Requirements & System Design (documentation artifacts) ⬜ **NOT STARTED**
+
+> `docs/design/` is still an empty placeholder — the diagrams + requirements spec remain outstanding.
 
 **Goal:** Lock requirements and produce the design diagrams the proposal mandates.
 
@@ -120,7 +122,7 @@ ERD/DFD/Use-Case diagrams are produced in Phase 1.
 - Tech-stack justification write-up (the table above).
 - **Deliverable:** `/docs/design/` with all diagrams + requirements spec. _(Maps: 6.4.1–6.4.5)_
 
-### Phase 2 — Authentication, RBAC & Core Domain
+### Phase 2 — Authentication, RBAC & Core Domain ✅ **COMPLETE**
 
 **Goal:** Identity and the employee/department backbone.
 
@@ -129,7 +131,7 @@ ERD/DFD/Use-Case diagrams are produced in Phase 1.
 - Role-based dashboard shells + Bootstrap layout/navigation.
 - **Deliverable:** secured app, seeded sample org. _(Maps: actors in 6.4.1; objective 6)_
 
-### Phase 3 — Biometric Device Integration (device-agnostic adapter)
+### Phase 3 — Biometric Device Integration (device-agnostic adapter) ✅ **COMPLETE**
 
 **Goal:** Pull attendance punches from real devices, vendor-independently.
 
@@ -139,7 +141,7 @@ ERD/DFD/Use-Case diagrams are produced in Phase 1.
 - Scheduled poller normalizes punches → POST to Laravel ingestion API (idempotent, signed).
 - **Deliverable:** punches flowing from a device (or driver stub) into `raw_attendance_logs`. _(Maps: objective 1; 6.5.11; supervisor device annotation)_
 
-### Phase 4 — Attendance Computation Engine
+### Phase 4 — Attendance Computation Engine ✅ **COMPLETE**
 
 **Goal:** Turn raw punches into accurate daily attendance.
 
@@ -148,7 +150,7 @@ ERD/DFD/Use-Case diagrams are produced in Phase 1.
 - HR manual-correction UI with audit trail.
 - **Deliverable:** daily `attendance_records` per employee. _(Maps: objective 1; problem of null/absent records)_
 
-### Phase 5 — HR Permission & Leave Management
+### Phase 5 — HR Permission & Leave Management ✅ **COMPLETE**
 
 **Goal:** Digitize the HR side of the integration.
 

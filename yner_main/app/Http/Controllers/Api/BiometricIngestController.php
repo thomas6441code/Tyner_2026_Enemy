@@ -3,9 +3,11 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\ComputeAttendanceForDate;
 use App\Models\RawAttendanceLog;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 
 class BiometricIngestController extends Controller
 {
@@ -33,6 +35,13 @@ class BiometricIngestController extends Controller
         $before = RawAttendanceLog::count();
         RawAttendanceLog::insertOrIgnore($rows);
         $stored = RawAttendanceLog::count() - $before;
+
+        // Recompute attendance for each distinct punch date so ingested punches flow
+        // into attendance_records without waiting for the nightly schedule.
+        collect($validated['logs'])
+            ->map(fn (array $log) => Carbon::parse($log['punched_at'])->toDateString())
+            ->unique()
+            ->each(fn (string $date) => ComputeAttendanceForDate::dispatch($date));
 
         return response()->json([
             'status' => 'ok',

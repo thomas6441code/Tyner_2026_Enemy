@@ -7,6 +7,7 @@ use App\Enums\PermissionType;
 use App\Models\Employee;
 use App\Models\PermissionRequest;
 use App\Models\User;
+use App\Services\AttendanceSyncService;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
 
@@ -54,7 +55,7 @@ class PermissionSeeder extends Seeder
         foreach ($samples as $sample) {
             $reviewed = $sample['status'] !== PermissionStatus::Pending;
 
-            PermissionRequest::firstOrCreate(
+            $request = PermissionRequest::firstOrCreate(
                 [
                     'employee_id' => $employee->id,
                     'type' => $sample['type'],
@@ -71,6 +72,13 @@ class PermissionSeeder extends Seeder
                         : null,
                 ],
             );
+
+            // The seeder writes rows directly, so PermissionRequestApproved never fires.
+            // Sync the approved sample explicitly so a fresh seed visibly shows the
+            // Absent → leave-status flip on /attendance out of the box.
+            if ($request->status === PermissionStatus::Approved) {
+                app(AttendanceSyncService::class)->syncForApproval($request);
+            }
         }
     }
 }

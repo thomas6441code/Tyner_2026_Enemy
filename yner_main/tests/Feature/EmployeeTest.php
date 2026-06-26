@@ -54,6 +54,8 @@ class EmployeeTest extends TestCase
 
     public function test_employee_can_view_own_record(): void
     {
+        // The Inertia migration dropped the GET /employees/{id} show route; the "view own
+        // record" guarantee now lives in EmployeePolicy::view, asserted directly here.
         $user = User::factory()->create();
         $user->assignRole(RoleName::Employee->value);
         $employee = Employee::create([
@@ -64,7 +66,7 @@ class EmployeeTest extends TestCase
             'status' => 'active',
         ]);
 
-        $this->actingAs($user)->get("/employees/{$employee->id}")->assertOk();
+        $this->assertTrue($user->can('view', $employee));
     }
 
     public function test_employee_cannot_view_someone_elses_record(): void
@@ -79,6 +81,6 @@ class EmployeeTest extends TestCase
             'status' => 'active',
         ]);
 
-        $this->actingAs($user)->get("/employees/{$otherEmployee->id}")->assertForbidden();
+        $this->assertFalse($user->can('view', $otherEmployee));
     }
 }

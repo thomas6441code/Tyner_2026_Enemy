@@ -18,6 +18,7 @@ class AttendanceRecord extends Model
         'late_minutes',
         'early_leave_minutes',
         'is_manual',
+        'permission_request_id',
         'remarks',
     ];
 
@@ -32,11 +33,17 @@ class AttendanceRecord extends Model
             'late_minutes' => 'integer',
             'early_leave_minutes' => 'integer',
             'is_manual' => 'boolean',
+            'permission_request_id' => 'integer',
         ];
     }
 
     public function employee(): BelongsTo
     {
         return $this->belongsTo(Employee::class);
+    }
+
+    public function permissionRequest(): BelongsTo
+    {
+        return $this->belongsTo(PermissionRequest::class);
     }
 }

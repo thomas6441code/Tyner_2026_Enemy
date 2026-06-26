@@ -47,7 +47,21 @@ class AttendanceCalculator
 
             $punches = ($punchesByEmployee[$employee->id] ?? collect())->sort()->values();
 
+            // A permission-backed leave day with no punch is owned by the sync engine —
+            // preserve its leave status instead of recomputing it back to Absent.
+            if ($existing && $existing->permission_request_id !== null && $punches->isEmpty()) {
+                $skipped++;
+
+                continue;
+            }
+
             $attributes = $this->deriveAttributes($punches, $employee->workSchedule, $date);
+
+            // A punch on a previously permission-backed day means the employee actually showed
+            // up — reality wins: recompute normally and drop the stale permission link.
+            if ($existing && $existing->permission_request_id !== null && $punches->isNotEmpty()) {
+                $attributes['permission_request_id'] = null;
+            }
 
             AttendanceRecord::updateOrCreate(
                 ['employee_id' => $employee->id, 'work_date' => $date->toDateString()],

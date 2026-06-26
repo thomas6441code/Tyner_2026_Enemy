@@ -96,7 +96,7 @@ cd bio-service && pytest
 | 3 | Biometric device integration | ✅ Done |
 | 4 | Attendance computation engine | ✅ Done |
 | 5 | HR permission & leave management | ✅ Done |
-| 6 | Attendance ↔ permission sync | ⬜ Next |
+| 6 | Attendance ↔ permission sync | ✅ Done |
 | 7 | AI: anomaly detection & prediction | ⬜ |
 | 8 | AI: Claude report summarization | ⬜ |
 | 9 | Notification system | ⬜ |

@@ -159,13 +159,16 @@ ERD/DFD/Use-Case diagrams are produced in Phase 1.
 - HR approval/rejection workflow, routing, status, notifications hook, audit.
 - **Deliverable:** end-to-end request → approval lifecycle. _(Maps: objective 2; 6.6.6 categories)_
 
-### Phase 6 — Attendance ⇄ Permission Synchronization (the core innovation)
+### Phase 6 — Attendance ⇄ Permission Synchronization (the core innovation) ✅ **COMPLETE**
+
+> Plan: `prompt/phase-6-attendance-permission-sync.md`. Implemented as a queued, idempotent,
+> fully-audited sync engine wired to the Phase 5 `PermissionRequestApproved` event.
 
 **Goal:** The heart of the project — eliminate false "Absent"/null records.
 
-- Sync engine: on permission **approval**, overlay approved dates onto attendance and update status from Absent/null → **Official Leave / Sick Leave / Permission Approved / Field Duty**.
-- Conflict resolution rules (punch exists vs approved leave), recompute on retro-approval, full audit.
-- Event-driven (Laravel events/jobs) so approvals trigger immediate resync.
+- Sync engine (`App\Services\AttendanceSyncService`): on permission **approval**, overlay approved dates onto attendance and update status from Absent/null → **Official Leave / Sick Leave / Permission Approved / Field Duty**.
+- Conflict resolution rules (manual correction > real punch > leave overlay), recompute-safe via a new `attendance_records.permission_request_id` link the calculator honours, full audit (`attendance.synced`).
+- Event-driven: `SyncAttendanceForApprovedPermission` (`ShouldQueue`) listens on `PermissionRequestApproved`, registered in `AppServiceProvider`. `attendance:sync-permissions` backfills retroactively.
 - **Deliverable:** approved permissions correctly reflected in attendance + monthly view. _(Maps: objectives 2 & 3; AI feature 6.6.6 — automatic status synchronization)_
 
 ### Phase 7 — AI Service: Internal ML (analysis, anomaly detection, prediction)

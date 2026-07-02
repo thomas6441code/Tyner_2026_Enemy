@@ -171,16 +171,24 @@ ERD/DFD/Use-Case diagrams are produced in Phase 1.
 - Event-driven: `SyncAttendanceForApprovedPermission` (`ShouldQueue`) listens on `PermissionRequestApproved`, registered in `AppServiceProvider`. `attendance:sync-permissions` backfills retroactively.
 - **Deliverable:** approved permissions correctly reflected in attendance + monthly view. _(Maps: objectives 2 & 3; AI feature 6.6.6 — automatic status synchronization)_
 
-### Phase 7 — AI Service: Internal ML (analysis, anomaly detection, prediction)
+### Phase 7 — AI Service: Internal ML (analysis, anomaly detection, prediction) ✅ **COMPLETE**
+
+> Plan: `prompt/phase-7-ai-internal-ml.md`. Implemented as a stateless AI service (Laravel pushes the
+> attendance dataset over signed REST; the service fits-on-batch and returns scored results) with graceful
+> fallback on both sides. Explainability write-up in `docs/ai/explainability.md`.
 
 **Goal:** Explainable, self-hosted intelligence over attendance data.
 
-- FastAPI service + feature pipeline (pandas) over attendance history.
-- **Smart attendance analysis** — lateness/absenteeism rates, trend aggregation. _(6.6.1)_
-- **Anomaly detection** — Isolation Forest / statistical z-score on punch-time & pattern outliers. _(6.6.2)_
-- **Predictive monitoring** — classifier (logistic regression / random forest) outputs absenteeism/lateness **risk score** per employee. _(6.6.3)_
-- Explainability notes + feature importance (so the team can _explain how it works_ per supervisor).
-- Laravel↔AI REST contract; scheduled batch scoring → `ai_anomalies`, `ai_predictions`.
+- FastAPI service + feature pipeline (pandas) over attendance history (`ai-service/app/ml/features.py`).
+- **Smart attendance analysis** — per-employee lateness/absenteeism rates, trend slope. _(6.6.1)_
+- **Anomaly detection** — Isolation Forest + per-employee z-score on punch-time & pattern outliers, each with a
+  human-readable explanation (`ai-service/app/ml/anomaly.py`). _(6.6.2)_
+- **Predictive monitoring** — RandomForest classifier on self-supervised labels outputs an absenteeism/lateness
+  **risk score** per employee, with rule-based fallback on cold-start (`ai-service/app/ml/prediction.py`). _(6.6.3)_
+- Explainability notes + feature importance returned in the prediction response and surfaced on the AI Insights
+  page (so the team can _explain how it works_ per supervisor).
+- Laravel↔AI REST contract (`App\Services\AiInsightsClient`); scheduled `ai:score-attendance` (daily 02:00)
+  persists into `ai_anomalies` / `ai_predictions` idempotently. Admin/HR **AI Insights** page reads them.
 - **Deliverable:** insights endpoints + persisted scores. _(Maps: objective 4; 6.5.9; 6.6.1–6.6.3)_
 
 ### Phase 8 — AI Service: External LLM Report Summarization (Claude API)

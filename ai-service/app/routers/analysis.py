@@ -3,12 +3,15 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends
 
 from ..dependencies import verify_internal_secret
+from ..llm import summarizer
 from ..ml import anomaly, prediction
 from ..schemas import (
     AnomalyRequest,
     AnomalyResponse,
     PredictionRequest,
     PredictionResponse,
+    SummaryRequest,
+    SummaryResponse,
 )
 
 router = APIRouter(
@@ -39,7 +42,12 @@ def predict_risk(request: PredictionRequest) -> PredictionResponse:
     return PredictionResponse(**result)
 
 
-@router.post("/summary")
-def generate_summary():
-    # Phase 8: Claude API monthly report summarization
-    return {"message": "not yet implemented"}
+@router.post("/summary", response_model=SummaryResponse)
+def generate_summary(request: SummaryRequest) -> SummaryResponse:
+    """Claude API monthly report summarization over aggregated stats (6.6.5).
+
+    Aggregates only — no PII. Degrades to a deterministic template summary when the Claude API
+    key is unset or the call fails (``fallback: true``).
+    """
+    result = summarizer.summarize(request.model_dump())
+    return SummaryResponse(**result)

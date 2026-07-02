@@ -13,3 +13,6 @@ Schedule::command('attendance:compute')->dailyAt('01:00');
 
 // Score attendance for anomalies + absenteeism risk once the recompute has settled.
 Schedule::command('ai:score-attendance')->dailyAt('02:00');
+
+// Remind employees to sign in if they have no attendance record yet.
+Schedule::command('attendance:remind-sign-in')->dailyAt('08:15');

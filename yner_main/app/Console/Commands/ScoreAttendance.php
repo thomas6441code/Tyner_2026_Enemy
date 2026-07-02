@@ -6,11 +6,14 @@ use App\Models\AiAnomaly;
 use App\Models\AiPrediction;
 use App\Models\AttendanceRecord;
 use App\Models\Employee;
+use App\Models\User;
+use App\Notifications\SystemNotification;
 use App\Services\AiInsightsClient;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Notification;
 
 class ScoreAttendance extends Command
 {
@@ -44,6 +47,8 @@ class ScoreAttendance extends Command
 
         $anomalies = $this->persistAnomalies($anomalyResult, $from, $to);
         $predictions = $this->persistPredictions($predictionResult);
+
+        $this->notifyManagement($anomalies, $predictions);
 
         Log::info('ai.scored', [
             'window' => [$from->toDateString(), $to->toDateString()],
@@ -154,5 +159,34 @@ class ScoreAttendance extends Command
         }
 
         return count($predictions);
+    }
+
+    private function notifyManagement(int $anomalies, int $predictions): void
+    {
+        if ($anomalies === 0 && $predictions === 0) {
+            return;
+        }
+
+        $recipients = User::role([\App\Enums\RoleName::Admin->value, \App\Enums\RoleName::HrOfficer->value])->get();
+
+        if ($recipients->isEmpty()) {
+            return;
+        }
+
+        Notification::send($recipients, SystemNotification::attendanceAlert(
+            'Attendance scoring completed',
+            sprintf(
+                'Latest AI scoring produced %d %s and %d risk score%s.',
+                $anomalies,
+                $anomalies === 1 ? 'anomaly' : 'anomalies',
+                $predictions,
+                $predictions === 1 ? '' : 's',
+            ),
+            route('ai-insights.index'),
+            [
+                'anomalies' => $anomalies,
+                'predictions' => $predictions,
+            ],
+        ));
     }
 }

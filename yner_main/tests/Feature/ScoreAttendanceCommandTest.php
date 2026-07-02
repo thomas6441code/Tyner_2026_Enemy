@@ -7,7 +7,10 @@ use App\Models\AiAnomaly;
 use App\Models\AiPrediction;
 use App\Models\AttendanceRecord;
 use App\Models\Employee;
+use App\Models\User;
+use App\Enums\RoleName;
 use App\Models\WorkSchedule;
+use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
@@ -16,6 +19,13 @@ use Tests\TestCase;
 class ScoreAttendanceCommandTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->seed(RoleSeeder::class);
+    }
 
     private function seedEmployeeWithHistory(): Employee
     {
@@ -36,6 +46,14 @@ class ScoreAttendanceCommandTest extends TestCase
         ]);
 
         return $employee;
+    }
+
+    private function userWithRole(RoleName $role): User
+    {
+        $user = User::factory()->create();
+        $user->assignRole($role->value);
+
+        return $user;
     }
 
     private function fakeAiResponses(Employee $employee, string $workDate): void
@@ -69,6 +87,7 @@ class ScoreAttendanceCommandTest extends TestCase
         $employee = $this->seedEmployeeWithHistory();
         $workDate = Carbon::today()->subDays(2)->toDateString();
         $this->fakeAiResponses($employee, $workDate);
+        $this->userWithRole(RoleName::Admin);
 
         $this->artisan('ai:score-attendance')->assertSuccessful();
 
@@ -82,6 +101,7 @@ class ScoreAttendanceCommandTest extends TestCase
             'risk_level' => 'high',
             'model_version' => 'rf-1.0',
         ]);
+        $this->assertDatabaseCount('notifications', 1);
     }
 
     public function test_rerun_is_idempotent(): void

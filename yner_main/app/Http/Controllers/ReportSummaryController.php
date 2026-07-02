@@ -4,11 +4,14 @@ namespace App\Http\Controllers;
 
 use App\Models\Department;
 use App\Models\ReportSummary;
+use App\Models\User;
+use App\Notifications\SystemNotification;
 use App\Services\AiInsightsClient;
 use App\Services\MonthlyReportAggregator;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Notification;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -96,10 +99,27 @@ class ReportSummaryController extends Controller
             ],
         );
 
+        $this->notifyManagement($department?->name, $month->format('F Y'));
+
         $note = ($result['fallback'] ?? false)
             ? 'Summary generated with the offline template (Claude API unavailable).'
             : 'AI summary generated.';
 
         return back()->with('status', $note);
+    }
+
+    private function notifyManagement(?string $departmentName, string $periodLabel): void
+    {
+        $recipients = User::role(['Admin', 'HR Officer'])->get();
+
+        if ($recipients->isEmpty()) {
+            return;
+        }
+
+        Notification::send($recipients, SystemNotification::reportSummaryReady(
+            $departmentName ? $departmentName.' department' : 'Organization-wide',
+            $periodLabel,
+            route('report-summaries.index'),
+        ));
     }
 }

@@ -8,8 +8,11 @@ use App\Enums\RoleName;
 use App\Events\PermissionRequestApproved;
 use App\Models\AuditLog;
 use App\Models\PermissionRequest;
+use App\Models\User;
+use App\Notifications\SystemNotification;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -96,6 +99,7 @@ class PermissionRequestController extends Controller
         ]);
 
         $this->audit($request, $permissionRequest, 'permission.submitted', null, $validated['reason']);
+        $this->notifyManagementOfSubmission($employee->fullName(), $permissionRequest->id);
 
         return redirect()->route('permission-requests.index')->with('status', 'Permission request submitted.');
     }
@@ -170,6 +174,8 @@ class PermissionRequestController extends Controller
             event(new PermissionRequestApproved($permissionRequest));
         }
 
+        $this->notifyEmployeeOfDecision($permissionRequest, $status->value);
+
         return redirect()->route('permission-requests.index')
             ->with('status', "Permission request {$status->value}.");
     }
@@ -235,5 +241,36 @@ class PermissionRequestController extends Controller
             ],
             'note' => $note,
         ]);
+    }
+
+    private function notifyManagementOfSubmission(string $employeeName, int $requestId): void
+    {
+        $recipients = User::role([RoleName::Admin->value, RoleName::HrOfficer->value])->get();
+
+        if ($recipients->isEmpty()) {
+            return;
+        }
+
+        Notification::send($recipients, SystemNotification::permissionRequestSubmitted(
+            $employeeName,
+            $requestId,
+            route('permission-requests.index'),
+        ));
+    }
+
+    private function notifyEmployeeOfDecision(PermissionRequest $permissionRequest, string $decision): void
+    {
+        $employeeUser = $permissionRequest->employee?->user;
+
+        if ($employeeUser === null) {
+            return;
+        }
+
+        $employeeUser->notify(SystemNotification::permissionRequestReviewed(
+            $permissionRequest->employee?->fullName() ?? 'Employee',
+            $decision,
+            $permissionRequest->id,
+            route('permission-requests.index'),
+        ));
     }
 }

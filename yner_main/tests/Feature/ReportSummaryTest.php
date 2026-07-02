@@ -96,12 +96,14 @@ class ReportSummaryTest extends TestCase
     {
         $this->seedMonthOfAttendance();
         $this->fakeSummary();
+        $admin = $this->admin();
 
-        $this->actingAs($this->admin())
+        $this->actingAs($admin)
             ->post('/report-summaries', ['period' => $this->period(), 'department_id' => null])
             ->assertRedirect();
 
         $this->assertSame(1, ReportSummary::count());
+        $this->assertDatabaseCount('notifications', 1);
         $this->assertDatabaseHas('report_summaries', [
             'narrative' => 'Attendance was strong this month.',
             'model' => 'claude-sonnet-4-6',

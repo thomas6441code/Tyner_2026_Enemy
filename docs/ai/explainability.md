@@ -85,3 +85,42 @@ employee, bucketed into low / medium / high.
 ## Reproducibility
 
 All models use `random_state = 42`, so a given batch produces the same scores every run.
+
+---
+
+## Phase 8 — External LLM Summarization
+
+This is the *external* half of the hybrid-AI answer: **automated report summarization (6.6.5)**
+using the **Claude API**. It complements — does not replace — the internal ML above.
+
+### 4. Automated report summarization (6.6.5) — `app/llm/summarizer.py`
+
+Claude turns a month of aggregated attendance statistics into a short, readable management
+narrative plus highlights and recommendations.
+
+#### Summarization data flow
+
+```text
+Laravel  "Generate summary"  (ReportSummaryController@store)
+  └─ MonthlyReportAggregator: month + optional department → aggregate stats
+       (headcount, status counts, attendance/punctuality/absence rates,
+        leave breakdown, late stats, anomaly & high-risk counts, prev-month trend)
+     └─ POST /api/analysis/summary   → { narrative, highlights[], recommendations[], model, fallback }
+        └─ persisted + cached in report_summaries (unique per month+department)
+```
+
+#### How it works
+
+- **Aggregates only (privacy)** — the payload carries only counts, rates and a department label;
+  **no employee names or per-person rows ever leave the system**. The exact payload is stored in
+  `report_summaries.stats` so the team can prove what was sent externally.
+- **Prompt** — a fixed system prompt frames Claude as an HR analytics assistant, forbids inventing
+  numbers, and requires strict JSON (`narrative`, `highlights[]`, `recommendations[]`); the user
+  message renders the stats. The reply is parsed tolerantly (raw text becomes the narrative if the
+  JSON can't be parsed).
+- **Caching** — each `(month, department)` is summarized once and reused; a "Regenerate" toggle
+  forces a fresh call. This keeps external API usage (and cost) minimal.
+- **Graceful fallback** — if `ANTHROPIC_API_KEY` is unset or the API errors, the service returns a
+  deterministic **template** narrative built from the same numbers, marked `fallback = true`. If
+  the AI service itself is unreachable, Laravel flashes a friendly message and writes nothing — no
+  crash at any layer.

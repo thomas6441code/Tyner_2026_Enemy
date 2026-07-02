@@ -191,14 +191,23 @@ ERD/DFD/Use-Case diagrams are produced in Phase 1.
   persists into `ai_anomalies` / `ai_predictions` idempotently. Admin/HR **AI Insights** page reads them.
 - **Deliverable:** insights endpoints + persisted scores. _(Maps: objective 4; 6.5.9; 6.6.1–6.6.3)_
 
-### Phase 8 — AI Service: External LLM Report Summarization (Claude API)
+### Phase 8 — AI Service: External LLM Report Summarization (Claude API) ✅ **COMPLETE**
+
+> Plan: `prompt/phase-8-llm-report-summarization.md`. Implemented as `ai-service/app/llm/summarizer.py`
+> (Claude Messages API over Laravel-supplied aggregates) with a deterministic template fallback, plus a
+> Laravel **Report Summaries** page (`MonthlyReportAggregator` → `AiInsightsClient::summarize` →
+> `report_summaries` cache, unique per month+department). Explainability write-up appended to
+> `docs/ai/explainability.md`.
 
 **Goal:** Human-readable monthly insight the supervisor asked us to explain.
 
-- Integrate **Claude API**; build structured-data → prompt → summary pipeline.
+- Integrate **Claude API**; build structured-data → prompt → summary pipeline (`/api/analysis/summary`).
 - **Automated report summarization** — monthly narrative + highlights/recommendations. _(6.6.5)_
-- Guardrails: send aggregates only (privacy), caching, graceful fallback if API unavailable.
-- **Deliverable:** "Generate AI summary" produces a monthly narrative on the report page. _(Maps: 6.6.5; "internal or external" → external piece, documented)_
+- Guardrails: **send aggregates only** (privacy — the exact payload is persisted in `report_summaries.stats`),
+  **caching** (one Claude call per month/department unless regenerated), **graceful fallback** (template
+  summary when the API key is unset/errors; flashed error when the AI service is unreachable — never a crash).
+- **Deliverable:** "Generate AI summary" produces a monthly narrative on the Report Summaries page (Phase 10
+  reporting will link to it). _(Maps: 6.6.5; "internal or external" → external piece, documented)_
 
 ### Phase 9 — Intelligent Notification System
 

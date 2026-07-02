@@ -98,7 +98,7 @@ cd bio-service && pytest
 | 5 | HR permission & leave management | ✅ Done |
 | 6 | Attendance ↔ permission sync | ✅ Done |
 | 7 | AI: anomaly detection & prediction | ✅ Done |
-| 8 | AI: Claude report summarization | ⬜ |
+| 8 | AI: Claude report summarization | ✅ Done |
 | 9 | Notification system | ⬜ |
 | 10 | Reporting & dashboards | ⬜ |
 | 11 | Testing & QA | ⬜ |

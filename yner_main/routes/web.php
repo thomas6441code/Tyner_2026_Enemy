@@ -9,6 +9,7 @@ use App\Http\Controllers\DeviceEnrollmentController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\PermissionRequestController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\ReportSummaryController;
 use App\Http\Controllers\WorkScheduleController;
 use Illuminate\Support\Facades\Route;
 
@@ -27,6 +28,11 @@ Route::get('/attendance', [AttendanceController::class, 'index'])
 Route::get('/ai-insights', [AiInsightController::class, 'index'])
     ->middleware(['auth', 'verified'])
     ->name('ai-insights.index');
+
+Route::middleware(['auth', 'verified'])->group(function () {
+    Route::get('/report-summaries', [ReportSummaryController::class, 'index'])->name('report-summaries.index');
+    Route::post('/report-summaries', [ReportSummaryController::class, 'store'])->name('report-summaries.store');
+});
 
 Route::middleware('auth')->group(function () {
     Route::put('/attendance/{attendanceRecord}', [AttendanceController::class, 'update'])->name('attendance.update');

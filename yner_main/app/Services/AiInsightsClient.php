@@ -40,6 +40,17 @@ class AiInsightsClient
     }
 
     /**
+     * Send aggregated monthly stats for LLM narration (Phase 8). Aggregates only — no PII.
+     *
+     * @param  array<string, mixed>  $stats
+     * @return array{narrative: string, highlights: array<int, string>, recommendations: array<int, string>, model: string, fallback: bool, generated_at: string}|null
+     */
+    public function summarize(array $stats): ?array
+    {
+        return $this->post('/api/analysis/summary', $stats);
+    }
+
+    /**
      * @param  array<string, mixed>  $payload
      * @return array<string, mixed>|null
      */

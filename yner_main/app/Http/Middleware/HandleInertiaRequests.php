@@ -8,6 +8,7 @@ use App\Models\Department;
 use App\Models\DeviceEnrollment;
 use App\Models\Employee;
 use App\Models\PermissionRequest;
+use App\Models\ReportSummary;
 use App\Models\WorkSchedule;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -62,6 +63,7 @@ class HandleInertiaRequests extends Middleware
                 'viewBiometricDevices' => $user?->can('viewAny', BiometricDevice::class) ?? false,
                 'viewDeviceEnrollments' => $user?->can('viewAny', DeviceEnrollment::class) ?? false,
                 'viewAiInsights' => $user?->can('viewAny', AiAnomaly::class) ?? false,
+                'viewReportSummaries' => $user?->can('viewAny', ReportSummary::class) ?? false,
             ],
             'flash' => [
                 'status' => $request->session()->get('status'),

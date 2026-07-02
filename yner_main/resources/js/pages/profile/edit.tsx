@@ -11,7 +11,7 @@ export default function EditProfile({ mustVerifyEmail, status }: { mustVerifyEma
         <AppLayout header={<h2 className="text-lg font-semibold">Profile</h2>}>
             <Head title="Profile" />
 
-            <div className="flex max-w-2xl flex-col gap-4">
+            <div className="grid md:grid-cols-2 grid-cols-1 gap-2">
                 <Card>
                     <CardContent className="p-6">
                         <UpdateProfileInformationForm mustVerifyEmail={mustVerifyEmail} status={status} />

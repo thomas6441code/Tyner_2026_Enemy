@@ -6,35 +6,43 @@
 :root {
     color-scheme: light;
 
-    --canvas: hsl(210 20% 98%);
-
+    /* Main backgrounds */
+    --canvas: hsl(220 30% 97%);
     --background: hsl(0 0% 100%);
     --foreground: hsl(222 47% 11%);
 
-    --card: hsl(0 0% 100%);
+    /* Cards */
+    --card: hsla(0, 0%, 95%, 0.866);
     --card-foreground: hsl(222 47% 11%);
 
+    /* Popovers */
     --popover: hsl(0 0% 100%);
     --popover-foreground: hsl(222 47% 11%);
 
-    --primary: hsl(152 64% 43%);
+    /* Dark Blue */
+    --primary: hsl(221 83% 32%);
     --primary-foreground: hsl(0 0% 100%);
 
-    --secondary: hsl(210 40% 96.1%);
-    --secondary-foreground: hsl(222 47% 11%);
+    /* Light Blue Secondary */
+    --secondary: hsl(214 32% 94%);
+    --secondary-foreground: hsl(221 83% 32%);
 
-    --muted: hsl(210 40% 96.1%);
-    --muted-foreground: hsl(215 16% 47%);
+    /* Muted */
+    --muted: hsl(214 30% 96%);
+    --muted-foreground: hsl(215 16% 45%);
 
-    --accent: hsl(210 40% 96.1%);
-    --accent-foreground: hsl(222 47% 11%);
+    /* Accent */
+    --accent: hsl(214 100% 95%);
+    --accent-foreground: hsl(221 83% 32%);
 
+    /* Danger */
     --destructive: hsl(0 84% 60%);
     --destructive-foreground: hsl(0 0% 100%);
 
-    --border: hsl(220 18% 94%);
-    --input: hsl(216 16% 88%);
-    --ring: hsl(152 64% 43%);
+    /* Borders */
+    --border: hsl(214 25% 89%);
+    --input: hsl(214 25% 89%);
+    --ring: hsl(221 83% 32%);
 }
 
 .dark {

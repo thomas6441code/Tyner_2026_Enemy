@@ -134,7 +134,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
 
     return (
         <>
-            <div className="flex h-20 items-center px-5">
+            <div className="flex h-20 items-center px-5 pl-16 bottom-0 border-b border-border">
                 <Logo className="ml-2 mt-2 text-3xl" />
             </div>
 

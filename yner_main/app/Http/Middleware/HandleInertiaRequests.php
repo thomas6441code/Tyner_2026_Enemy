@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\AiAnomaly;
 use App\Models\BiometricDevice;
 use App\Models\Department;
 use App\Models\DeviceEnrollment;
@@ -60,6 +61,7 @@ class HandleInertiaRequests extends Middleware
                 'viewWorkSchedules' => $user?->can('viewAny', WorkSchedule::class) ?? false,
                 'viewBiometricDevices' => $user?->can('viewAny', BiometricDevice::class) ?? false,
                 'viewDeviceEnrollments' => $user?->can('viewAny', DeviceEnrollment::class) ?? false,
+                'viewAiInsights' => $user?->can('viewAny', AiAnomaly::class) ?? false,
             ],
             'flash' => [
                 'status' => $request->session()->get('status'),

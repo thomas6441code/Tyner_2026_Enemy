@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AiInsightController;
 use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\BiometricDeviceController;
 use App\Http\Controllers\DashboardController;
@@ -22,6 +23,10 @@ Route::get('/dashboard', [DashboardController::class, 'index'])
 Route::get('/attendance', [AttendanceController::class, 'index'])
     ->middleware(['auth', 'verified'])
     ->name('attendance.index');
+
+Route::get('/ai-insights', [AiInsightController::class, 'index'])
+    ->middleware(['auth', 'verified'])
+    ->name('ai-insights.index');
 
 Route::middleware('auth')->group(function () {
     Route::put('/attendance/{attendanceRecord}', [AttendanceController::class, 'update'])->name('attendance.update');

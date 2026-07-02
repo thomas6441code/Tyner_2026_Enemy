@@ -1,5 +1,6 @@
 from fastapi import FastAPI
-from app.routers import health, analysis
+
+from app.routers import analysis, health
 
 app = FastAPI(title="IFM AI Service", version="0.1.0")
 

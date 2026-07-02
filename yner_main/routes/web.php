@@ -7,6 +7,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\DeviceEnrollmentController;
 use App\Http\Controllers\EmployeeController;
+use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PermissionRequestController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ReportSummaryController;
@@ -32,6 +33,12 @@ Route::get('/ai-insights', [AiInsightController::class, 'index'])
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/report-summaries', [ReportSummaryController::class, 'index'])->name('report-summaries.index');
     Route::post('/report-summaries', [ReportSummaryController::class, 'store'])->name('report-summaries.store');
+
+    Route::get('/notifications', [NotificationController::class, 'index'])->name('notifications.index');
+    Route::patch('/notifications/{notification}/read', [NotificationController::class, 'markAsRead'])
+        ->name('notifications.read');
+    Route::patch('/notifications/read-all', [NotificationController::class, 'markAllAsRead'])
+        ->name('notifications.read-all');
 });
 
 Route::middleware('auth')->group(function () {

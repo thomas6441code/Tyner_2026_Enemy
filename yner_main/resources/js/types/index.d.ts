@@ -22,5 +22,6 @@ export interface SharedData {
     flash: {
         status: string | null;
     };
+    unreadNotifications: number;
     [key: string]: unknown;
 }

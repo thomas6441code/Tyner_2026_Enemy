@@ -14,12 +14,12 @@ import {
 import type { SharedData } from '@/types';
 
 export function AppHeader({ onMenuClick }: { onMenuClick: () => void }) {
-    const { auth } = usePage<SharedData>().props;
+    const { auth, unreadNotifications } = usePage<SharedData>().props;
     const user = auth.user;
     const role = user?.roles?.[0];
 
     return (
-        <header className="sticky top-0 z-30 flex h-16 items-center gap-3 bg-background/80 px-4 shadow-soft backdrop-blur md:gap-4 md:px-6">
+        <header className="sticky top-0 z-30 flex h-20 items-center gap-3 bg-background/80 px-4 shadow-soft backdrop-blur md:gap-4 md:px-6">
             <button
                 type="button"
                 onClick={onMenuClick}
@@ -44,16 +44,20 @@ export function AppHeader({ onMenuClick }: { onMenuClick: () => void }) {
                     className="relative flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                     aria-label="Messages"
                 >
-                    <MessageSquare className="h-[18px] w-[18px]" />
+                    <MessageSquare className="h-4.5 w-4.5" />
                 </button>
-                <button
-                    type="button"
+                <Link
+                    href={route('notifications.index')}
                     className="relative flex h-9 w-9 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
                     aria-label="Notifications"
                 >
-                    <Bell className="h-[18px] w-[18px]" />
-                    <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-destructive" />
-                </button>
+                    <Bell className="h-4.5 w-4.5" />
+                    {unreadNotifications > 0 && (
+                        <span className="absolute right-1.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold leading-none text-destructive-foreground">
+                            {unreadNotifications > 9 ? '9+' : unreadNotifications}
+                        </span>
+                    )}
+                </Link>
 
                 {user && (
                     <DropdownMenu>

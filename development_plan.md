@@ -209,13 +209,13 @@ ERD/DFD/Use-Case diagrams are produced in Phase 1.
 - **Deliverable:** "Generate AI summary" produces a monthly narrative on the Report Summaries page (Phase 10
   reporting will link to it). _(Maps: 6.6.5; "internal or external" → external piece, documented)_
 
-### Phase 9 — Intelligent Notification System
+### Phase 9 — Intelligent Notification System ✅ **COMPLETE**
 
 **Goal:** Proactive alerts/reminders.
 
-- Channels: in-app + email (optional SMS gateway); Laravel queue + scheduler.
-- Triggers: pending approvals, detected anomalies, high-risk predictions, sign-in reminders, monthly-report ready.
-- **Deliverable:** notification center + email delivery. _(Maps: objective 5; 6.6.4)_
+- Implemented as a database-backed inbox (`notifications` table) plus optional email delivery through Laravel notifications.
+- Triggers now fire from permission submissions/reviews, AI scoring, report generation, and the scheduled sign-in reminder command.
+- **Deliverable:** notification center + email-ready notification classes + morning reminder scheduler. _(Maps: objective 5; 6.6.4)_
 
 ### Phase 10 — Reporting, Dashboards & Decision Support
 

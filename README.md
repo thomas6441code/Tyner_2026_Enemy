@@ -99,7 +99,7 @@ cd bio-service && pytest
 | 6 | Attendance ↔ permission sync | ✅ Done |
 | 7 | AI: anomaly detection & prediction | ✅ Done |
 | 8 | AI: Claude report summarization | ✅ Done |
-| 9 | Notification system | ⬜ |
+| 9 | Notification system | ✅ Done |
 | 10 | Reporting & dashboards | ⬜ |
 | 11 | Testing & QA | ⬜ |
 | 12 | Documentation | ⬜ |

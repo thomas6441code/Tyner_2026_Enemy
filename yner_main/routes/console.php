@@ -10,3 +10,6 @@ Artisan::command('inspire', function () {
 
 // Recompute the previous day's attendance once the day has closed.
 Schedule::command('attendance:compute')->dailyAt('01:00');
+
+// Score attendance for anomalies + absenteeism risk once the recompute has settled.
+Schedule::command('ai:score-attendance')->dailyAt('02:00');

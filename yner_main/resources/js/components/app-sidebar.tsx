@@ -12,6 +12,7 @@ import {
     type LucideIcon,
     Moon,
     ScanLine,
+    Settings,
     Sun,
     Users,
     X,
@@ -104,19 +105,19 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
             label: 'Organization',
             items: [
                 {
+                    href: route('work-schedules.index'),
+                    label: 'Schedules',
+                    icon: Clock,
+                    active: route().current('work-schedules.*'),
+                    show: can.viewWorkSchedules,
+                },
+                {
                     href: route('departments.index'),
                     label: 'Departments',
                     icon: Building2,
                     active: route().current('departments.*'),
                     show: can.viewDepartments,
-                },
-                {
-                    href: route('work-schedules.index'),
-                    label: 'Work Schedule',
-                    icon: Clock,
-                    active: route().current('work-schedules.*'),
-                    show: can.viewWorkSchedules,
-                },
+                }
             ],
         },
         {
@@ -135,6 +136,18 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                     icon: ScanLine,
                     active: route().current('device-enrollments.*'),
                     show: can.viewDeviceEnrollments,
+                },
+            ],
+        },
+        {
+            label: 'System',
+            items: [
+                {
+                    href: route('ai-settings.edit'),
+                    label: 'AI Settings',
+                    icon: Settings,
+                    active: route().current('ai-settings.*'),
+                    show: can.manageAiSettings,
                 },
             ],
         },

@@ -37,6 +37,10 @@ class AppServiceProvider extends ServiceProvider
             RoleName::HrOfficer->value,
         ]));
 
+        // AI Settings stores the OpenRouter/LLM provider, model, and API key used for report
+        // summarization — Admin only, since it controls AI spend and holds a secret key.
+        Gate::define('manageAiSettings', fn (User $user) => $user->hasRole(RoleName::Admin->value));
+
         // Scramble: every documented /api route is guarded by the shared internal secret, so apply
         // it as a global API-key security scheme in the generated OpenAPI document (/docs/api).
         Scramble::configure()

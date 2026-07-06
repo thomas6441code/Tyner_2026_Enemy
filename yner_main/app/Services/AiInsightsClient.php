@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\AiSetting;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -41,13 +42,23 @@ class AiInsightsClient
 
     /**
      * Send aggregated monthly stats for LLM narration (Phase 8). Aggregates only — no PII.
+     * The current AI Settings (provider/model/API key, see {@see AiSetting}) are merged into
+     * the payload so ai-service can call the configured LLM without owning any of that state.
      *
      * @param  array<string, mixed>  $stats
      * @return array{narrative: string, highlights: array<int, string>, recommendations: array<int, string>, model: string, fallback: bool, generated_at: string}|null
      */
     public function summarize(array $stats): ?array
     {
-        return $this->post('/api/analysis/summary', $stats);
+        $setting = AiSetting::current();
+
+        return $this->post('/api/analysis/summary', [
+            ...$stats,
+            'provider' => $setting->provider,
+            'model' => $setting->model,
+            'api_key' => $setting->api_key,
+            'base_url' => $setting->base_url,
+        ]);
     }
 
     /**

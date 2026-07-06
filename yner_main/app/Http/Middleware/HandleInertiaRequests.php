@@ -65,6 +65,7 @@ class HandleInertiaRequests extends Middleware
                 'viewAiInsights' => $user?->can('viewAny', AiAnomaly::class) ?? false,
                 'viewReportSummaries' => $user?->can('viewAny', ReportSummary::class) ?? false,
                 'viewReports' => $user?->can('viewReports') ?? false,
+                'manageAiSettings' => $user?->can('manageAiSettings') ?? false,
             ],
             'unreadNotifications' => $user?->unreadNotifications()->count() ?? 0,
             'flash' => [

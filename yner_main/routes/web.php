@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AiInsightController;
+use App\Http\Controllers\AiSettingController;
 use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\BiometricDeviceController;
 use App\Http\Controllers\DashboardController;
@@ -52,6 +53,9 @@ Route::middleware('auth')->group(function () {
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+
+    Route::get('/settings/ai', [AiSettingController::class, 'edit'])->name('ai-settings.edit');
+    Route::put('/settings/ai', [AiSettingController::class, 'update'])->name('ai-settings.update');
 
     // Forms are rendered as modals on each index page, so create/edit GET pages are unused.
     Route::resource('departments', DepartmentController::class)->except(['show', 'create', 'edit']);

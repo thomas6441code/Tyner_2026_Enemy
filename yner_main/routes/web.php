@@ -69,6 +69,10 @@ Route::middleware('auth')->group(function () {
         ->name('permission-requests.attachment');
 
     Route::resource('biometric-devices', BiometricDeviceController::class)->except(['show', 'create', 'edit']);
+    Route::post('biometric-devices/{biometricDevice}/test-connection', [BiometricDeviceController::class, 'testConnection'])
+        ->name('biometric-devices.test-connection');
+    Route::get('biometric-devices/{biometricDevice}/logs', [BiometricDeviceController::class, 'logs'])
+        ->name('biometric-devices.logs');
     Route::resource('device-enrollments', DeviceEnrollmentController::class)->except(['show', 'create', 'edit']);
 });
 

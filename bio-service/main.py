@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 
-from app.routers import health
+from app.routers import devices, health
 from app.services.scheduler import start_scheduler
 
 DESCRIPTION = """
@@ -18,7 +18,14 @@ header. It is push-oriented, so its own HTTP surface is intentionally minimal.
 """
 
 tags_metadata = [
-    {"name": "health", "description": "Liveness probe used by `eapms:status` and Docker health checks."},
+    {
+        "name": "health",
+        "description": "Liveness probe used by `eapms:status` and Docker health checks.",
+    },
+    {
+        "name": "devices",
+        "description": "On-demand per-device actions requested by yner_main (Test Connection).",
+    },
 ]
 
 app = FastAPI(
@@ -34,6 +41,7 @@ app = FastAPI(
 )
 
 app.include_router(health.router)
+app.include_router(devices.router)
 
 scheduler = None
 

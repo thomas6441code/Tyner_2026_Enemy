@@ -1,11 +1,12 @@
 import { Head, router } from '@inertiajs/react';
-import { Pencil, Plus, Trash2 } from 'lucide-react';
+import { Fingerprint, Pencil, Plus, ScanLine, Trash2, Users } from 'lucide-react';
 import { useState } from 'react';
 import { route } from 'ziggy-js';
 
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { DeviceEnrollmentFormDialog } from '@/components/device-enrollment-form-dialog';
 import { Pagination } from '@/components/pagination';
+import { StatCard } from '@/components/stat-card';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -36,6 +37,7 @@ interface DeviceEnrollmentsIndexProps {
         data: DeviceEnrollment[];
         links: { url: string | null; label: string; active: boolean }[];
     };
+    stats: { total: number; devices: number; employees: number };
     devices: DeviceOption[];
     employees: EmployeeOption[];
     actions: { create: boolean; update: boolean; delete: boolean };
@@ -44,6 +46,7 @@ interface DeviceEnrollmentsIndexProps {
 
 export default function DeviceEnrollmentsIndex({
     enrollments,
+    stats,
     devices,
     employees,
     actions,
@@ -66,6 +69,12 @@ export default function DeviceEnrollmentsIndex({
                         <Plus className="h-4 w-4" /> New Enrollment
                     </Button>
                 )}
+            </div>
+
+            <div className="mt-6 grid gap-4 sm:grid-cols-3">
+                <StatCard icon={Fingerprint} iconClass="bg-primary/10 text-primary" label="Total Enrollments" value={stats.total} />
+                <StatCard icon={ScanLine} iconClass="bg-emerald-50 text-emerald-600" label="Active Devices" value={stats.devices} />
+                <StatCard icon={Users} iconClass="bg-amber-50 text-amber-600" label="Employees Enrolled" value={stats.employees} />
             </div>
 
             {status && (

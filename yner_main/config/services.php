@@ -42,4 +42,9 @@ return [
         'timeout' => (int) env('AI_SERVICE_TIMEOUT', 30),
     ],
 
+    'bio' => [
+        'url' => env('BIO_SERVICE_URL', 'http://127.0.0.1:8002'),
+        'timeout' => (int) env('BIO_SERVICE_TIMEOUT', 10),
+    ],
+
 ];

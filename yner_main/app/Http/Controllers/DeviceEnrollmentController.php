@@ -37,6 +37,7 @@ class DeviceEnrollmentController extends Controller
 
         return Inertia::render('device-enrollments/index', $this->formData() + [
             'enrollments' => $enrollments,
+            'stats' => $this->stats(),
             'actions' => $this->actions($request),
             'status' => session('status'),
         ]);
@@ -111,6 +112,18 @@ class DeviceEnrollmentController extends Controller
                 ->get(['id', 'first_name', 'last_name'])
                 ->map(fn (Employee $employee) => ['id' => $employee->id, 'fullName' => $employee->fullName()]),
             'devices' => BiometricDevice::where('status', 'active')->orderBy('name')->get(['id', 'name', 'serial']),
+        ];
+    }
+
+    /**
+     * Summary counts for the stat cards on the index page.
+     */
+    private function stats(): array
+    {
+        return [
+            'total' => DeviceEnrollment::count(),
+            'devices' => BiometricDevice::where('status', 'active')->count(),
+            'employees' => DeviceEnrollment::distinct('employee_id')->count('employee_id'),
         ];
     }
 

@@ -16,6 +16,9 @@ class BiometricDevice extends Model
         'username',
         'password',
         'status',
+        'last_checked_at',
+        'last_status',
+        'last_status_message',
     ];
 
     protected function casts(): array
@@ -23,6 +26,7 @@ class BiometricDevice extends Model
         return [
             'port' => 'integer',
             'password' => 'encrypted',
+            'last_checked_at' => 'datetime',
         ];
     }
 

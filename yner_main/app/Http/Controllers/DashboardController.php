@@ -3,12 +3,15 @@
 namespace App\Http\Controllers;
 
 use App\Enums\AttendanceStatus;
+use App\Enums\PermissionStatus;
 use App\Enums\RoleName;
 use App\Models\AiAnomaly;
 use App\Models\AiPrediction;
 use App\Models\AttendanceRecord;
 use App\Models\Department;
 use App\Models\Employee;
+use App\Models\PermissionRequest;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -51,16 +54,211 @@ class DashboardController extends Controller
         }
 
         if ($user->hasRole(RoleName::HrOfficer->value)) {
-            return Inertia::render('dashboard/hr', [
-                'employeeCount' => Employee::count(),
-                'activeEmployeeCount' => Employee::where('status', 'active')->count(),
-                'departments' => Department::withCount('employees')->orderBy('name')->get(),
-            ]);
+            return $this->hrDashboard();
+        }
+
+        return $this->employeeDashboard($user);
+    }
+
+    /**
+     * Workforce analytics dashboard for an HR Officer — org-wide (HR sees everything): today's
+     * attendance composition, 30-day trend, department distribution, weekly absence pattern,
+     * this-month permission-request throughput with an actionable pending queue, and exception
+     * counts. Reuses the same aggregate builders the Admin dashboard uses.
+     */
+    private function hrDashboard(): Response
+    {
+        $today = Carbon::today();
+        $monthStart = Carbon::now()->startOfMonth();
+
+        $totalEmployees = Employee::count();
+        $activeEmployees = Employee::where('status', 'active')->count();
+
+        // Today's attendance composition across the whole workforce.
+        $todayRecords = AttendanceRecord::whereDate('work_date', $today->toDateString())->get();
+        $onTime = $todayRecords->where('status', AttendanceStatus::Present)->count();
+        $lateToday = $todayRecords->where('status', AttendanceStatus::Late)->count();
+        $leaveToday = $todayRecords->filter(fn (AttendanceRecord $r) => $r->status->isLeave())->count();
+        $absentToday = $todayRecords->where('status', AttendanceStatus::Absent)->count();
+        $checkedIn = $onTime + $lateToday;
+        $notCheckedIn = max($totalEmployees - $checkedIn - $leaveToday - $absentToday, 0);
+
+        // This month's exception totals.
+        $monthRecords = AttendanceRecord::whereBetween('work_date', [$monthStart->toDateString(), $today->toDateString()])
+            ->get(['late_minutes', 'early_leave_minutes']);
+        $lateComing = $monthRecords->where('late_minutes', '>', 0)->count();
+        $earlyGoing = $monthRecords->where('early_leave_minutes', '>', 0)->count();
+
+        $pending = PermissionRequest::where('status', PermissionStatus::Pending)->count();
+
+        $recentPending = PermissionRequest::with('employee:id,first_name,last_name')
+            ->where('status', PermissionStatus::Pending)
+            ->latest()
+            ->limit(6)
+            ->get()
+            ->map(fn (PermissionRequest $r) => [
+                'id' => $r->id,
+                'employee' => $r->employee?->fullName() ?? 'Unknown',
+                'type_label' => $r->type->label(),
+                'start_date' => $r->start_date->toDateString(),
+                'end_date' => $r->end_date->toDateString(),
+            ])
+            ->values();
+
+        return Inertia::render('dashboard/hr', [
+            'monthLabel' => $monthStart->format('F Y'),
+            'stats' => [
+                'total' => $totalEmployees,
+                'active' => $activeEmployees,
+                'inactive' => max($totalEmployees - $activeEmployees, 0),
+                'unlinked' => Employee::whereNull('user_id')->count(),
+                'presentToday' => $checkedIn,
+                'pending' => $pending,
+            ],
+            'today' => [
+                'checkedIn' => $checkedIn,
+                'notCheckedIn' => $notCheckedIn,
+                'onLeave' => $leaveToday,
+                'late' => $lateToday,
+                'absent' => $absentToday,
+            ],
+            'donut' => [
+                'onTime' => $onTime,
+                'late' => $lateToday,
+                'leave' => $leaveToday,
+                'absent' => $absentToday,
+                'notCheckedIn' => $notCheckedIn,
+            ],
+            'attendanceTrend' => $this->attendanceReport(),
+            'byDepartment' => $this->byDepartment(),
+            'weeklyAbsent' => $this->weeklyAbsent(),
+            'requests' => [
+                'pending' => $pending,
+                'approved' => PermissionRequest::where('status', PermissionStatus::Approved)
+                    ->where('reviewed_at', '>=', $monthStart)->count(),
+                'rejected' => PermissionRequest::where('status', PermissionStatus::Rejected)
+                    ->where('reviewed_at', '>=', $monthStart)->count(),
+                'recent' => $recentPending,
+            ],
+            'exceptions' => ['lateComing' => $lateComing, 'earlyGoing' => $earlyGoing],
+            'departments' => Department::withCount('employees')->orderBy('name')->get(),
+        ]);
+    }
+
+    /**
+     * Personal analytics dashboard for an Employee — scoped entirely to their own record:
+     * this month's attendance breakdown, today's status, the current week's worked-hours and
+     * late-minutes bars, exception counts, and their pending/approved permission requests.
+     */
+    private function employeeDashboard(User $user): Response
+    {
+        $employee = $user->employee()->with(['department', 'workSchedule'])->first();
+
+        if ($employee === null) {
+            return Inertia::render('dashboard/employee', ['employee' => null]);
+        }
+
+        $monthStart = Carbon::now()->startOfMonth();
+        $today = Carbon::today();
+
+        $records = AttendanceRecord::where('employee_id', $employee->id)
+            ->whereBetween('work_date', [$monthStart->toDateString(), $today->toDateString()])
+            ->get();
+
+        $present = $records->where('status', AttendanceStatus::Present)->count();
+        $late = $records->where('status', AttendanceStatus::Late)->count();
+        $absent = $records->where('status', AttendanceStatus::Absent)->count();
+        $leave = $records->filter(fn (AttendanceRecord $r) => $r->status->isLeave())->count();
+        $workedMinutes = (int) $records->sum('worked_minutes');
+        $lateComing = $records->where('late_minutes', '>', 0)->count();
+        $earlyGoing = $records->where('early_leave_minutes', '>', 0)->count();
+
+        [$todayStatus, $todayLabel] = $this->todayStatus(
+            $records->first(fn (AttendanceRecord $r) => $r->work_date->isSameDay($today))
+        );
+
+        // Current week (Sun–Sat): worked hours + late minutes per day for the two bar charts.
+        $weekStart = Carbon::now()->startOfWeek(Carbon::SUNDAY);
+        $weekRecords = AttendanceRecord::where('employee_id', $employee->id)
+            ->whereBetween('work_date', [$weekStart->toDateString(), $weekStart->copy()->addDays(6)->toDateString()])
+            ->get()
+            ->keyBy(fn (AttendanceRecord $r) => $r->work_date->toDateString());
+
+        $weekLabels = [];
+        $weekHours = [];
+        $weekLate = [];
+        for ($i = 0; $i < 7; $i++) {
+            $day = $weekStart->copy()->addDays($i);
+            $record = $weekRecords->get($day->toDateString());
+            $weekLabels[] = $day->format('D');
+            $weekHours[] = $record && $record->worked_minutes ? (int) round($record->worked_minutes / 60) : 0;
+            $weekLate[] = $record ? (int) $record->late_minutes : 0;
         }
 
         return Inertia::render('dashboard/employee', [
-            'employee' => $user->employee()->with(['department', 'workSchedule'])->first(),
+            'employee' => [
+                'name' => $employee->fullName(),
+                'employee_code' => $employee->employee_code,
+                'status' => $employee->status,
+                'department' => $employee->department ? ['name' => $employee->department->name] : null,
+                'workSchedule' => $employee->workSchedule ? ['name' => $employee->workSchedule->name] : null,
+            ],
+            'monthLabel' => $monthStart->format('F Y'),
+            'summary' => [
+                'present' => $present,
+                'late' => $late,
+                'absent' => $absent,
+                'leave' => $leave,
+                'workedHours' => (int) round($workedMinutes / 60),
+                'totalDays' => $records->count(),
+            ],
+            'today' => ['status' => $todayStatus, 'label' => $todayLabel],
+            'week' => [
+                'labels' => $weekLabels,
+                'hours' => $weekHours,
+                'late' => $weekLate,
+                'todayIndex' => (int) round($weekStart->diffInDays($today)),
+            ],
+            'exceptions' => ['lateComing' => $lateComing, 'earlyGoing' => $earlyGoing],
+            'requests' => [
+                'pending' => $employee->permissionRequests()->where('status', PermissionStatus::Pending)->count(),
+                'thisMonth' => $employee->permissionRequests()->where('created_at', '>=', $monthStart)->count(),
+                'approved' => $employee->permissionRequests()
+                    ->where('status', PermissionStatus::Approved)
+                    ->where('reviewed_at', '>=', $monthStart)
+                    ->count(),
+            ],
         ]);
+    }
+
+    /**
+     * Derive today's presence state from the employee's record for today (if any).
+     *
+     * @return array{0: string, 1: string}
+     */
+    private function todayStatus(?AttendanceRecord $record): array
+    {
+        if ($record === null) {
+            return ['none', 'Not Checked In'];
+        }
+
+        if ($record->status->isLeave()) {
+            return ['on_leave', $record->status->label()];
+        }
+
+        if ($record->first_in && ! $record->last_out) {
+            return ['checked_in', 'Checked In'];
+        }
+
+        if ($record->first_in && $record->last_out) {
+            return ['checked_out', 'Checked Out'];
+        }
+
+        if ($record->status === AttendanceStatus::Absent) {
+            return ['absent', 'Absent'];
+        }
+
+        return ['none', 'Not Checked In'];
     }
 
     /**

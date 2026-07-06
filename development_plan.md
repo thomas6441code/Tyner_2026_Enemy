@@ -251,7 +251,18 @@ ERD/DFD/Use-Case diagrams are produced in Phase 1.
 - **UAT script** mapping each test to an objective/AI feature (traceability) — `docs/uat/uat-script.md`.
 - **Deliverable:** green test suite + UAT sign-off. _(Maps: 6.3.5)_
 
-### Phase 12 — Documentation
+### Phase 12 — Documentation ✅ **COMPLETE**
+
+> Backfilled the Phase 1 design diagrams (they were never produced) as version-controlled
+> Mermaid diagrams in `docs/design/` (use-case, ERD, DFD L0/L1, attendance-compute &
+> approval-sync flowcharts, architecture + tech-stack justification), added a full API
+> reference (`docs/api/laravel.md` for every Inertia route, `docs/api/internal-rest.md` for
+> the signed bio-service/ai-service REST contracts), a per-role user manual
+> (`docs/manual/{employee,hr-officer,admin}.md`), and an admin/ops runbook
+> (`docs/runbook.md` — bring-up, env vars, scheduled/queued jobs, troubleshooting, MySQL
+> backup/restore). Scope was deliberately **supporting documentation, not academic chapter
+> prose** — the diagrams and references are meant to be cited/pasted directly into the FYP
+> report rather than substituting for it.
 
 **Goal:** Academic + operational docs.
 

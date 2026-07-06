@@ -43,19 +43,30 @@ Seeded logins (password `password`): `admin@eapms.test` (Admin), `hr@eapms.test`
 | Phase | Description | Status |
 | ----- | ----------- | ------ |
 | 0  | Project setup & foundations (3-service skeleton)            | ✅ Complete |
-| 1  | Requirements & system design (diagrams, spec)              | ⬜ Not started |
+| 1  | Requirements & system design (diagrams, spec)              | ⬜ Not started (diagrams backfilled in Phase 12) |
 | 2  | Authentication, RBAC & core domain                         | ✅ Complete |
 | 3  | Biometric device integration (device-agnostic adapter)     | ✅ Complete |
 | 4  | Attendance computation engine                              | ✅ Complete |
 | 5  | HR permission & leave management                           | ✅ Complete |
-| 6  | Attendance ⇄ permission synchronization (core innovation)  | ⬜ Pending |
-| 7  | AI service — internal ML (anomaly detection, prediction)   | ⬜ Pending |
-| 8  | AI service — Claude report summarization                   | ⬜ Pending |
-| 9  | Intelligent notification system                            | ⬜ Pending |
-| 10 | Reporting, dashboards & decision support                   | ⬜ Pending |
-| 11 | Testing & QA                                               | ⬜ Pending |
-| 12 | Documentation                                              | ⬜ Pending |
+| 6  | Attendance ⇄ permission synchronization (core innovation)  | ✅ Complete |
+| 7  | AI service — internal ML (anomaly detection, prediction)   | ✅ Complete |
+| 8  | AI service — Claude report summarization                   | ✅ Complete |
+| 9  | Intelligent notification system                            | ✅ Complete |
+| 10 | Reporting, dashboards & decision support                   | ✅ Complete |
+| 11 | Testing & QA                                               | ✅ Complete |
+| 12 | Documentation                                              | ✅ Complete |
 | 13 | Deployment (Cloud VPS) & hardening                         | ⬜ Pending |
 
 See [`development_plan.md`](../development_plan.md) for the full plan and per-phase detail,
 and [`prompt/`](../prompt/) for the executed implementation plans.
+
+## Documentation map (`/docs`)
+
+| Area | Path |
+| --- | --- |
+| System design (use-case, ERD, DFD, flowcharts, architecture) | [`docs/design/`](../docs/design/) |
+| API reference (Inertia routes + internal REST contracts) | [`docs/api/`](../docs/api/) |
+| User manual (Employee / HR Officer / Admin) | [`docs/manual/`](../docs/manual/) |
+| Admin / operations runbook | [`docs/runbook.md`](../docs/runbook.md) |
+| AI explainability + ML evaluation | [`docs/ai/`](../docs/ai/) |
+| UAT traceability script | [`docs/uat/`](../docs/uat/) |

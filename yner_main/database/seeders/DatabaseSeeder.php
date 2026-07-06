@@ -16,6 +16,7 @@ class DatabaseSeeder extends Seeder
             OrgSeeder::class,
             AttendanceSeeder::class,
             PermissionSeeder::class,
+            AiInsightSeeder::class,
         ]);
     }
 }

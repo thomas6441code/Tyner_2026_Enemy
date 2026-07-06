@@ -91,7 +91,7 @@ cd bio-service && pytest
 | Phase | Description | Status |
 |---|---|---|
 | 0 | Project setup & foundations | ✅ Done |
-| 1 | Requirements & system design | ⬜ |
+| 1 | Requirements & system design | ✅ Done |
 | 2 | Auth, RBAC & core domain | ✅ Done |
 | 3 | Biometric device integration | ✅ Done |
 | 4 | Attendance computation engine | ✅ Done |
@@ -102,5 +102,5 @@ cd bio-service && pytest
 | 9 | Notification system | ✅ Done |
 | 10 | Reporting & dashboards | ✅ Done |
 | 11 | Testing & QA | ✅ Done |
-| 12 | Documentation | ⬜ |
+| 12 | Documentation | ✅ Done |
 | 13 | Cloud VPS deployment | ⬜ |

@@ -8,6 +8,8 @@ from ..ml import anomaly, prediction
 from ..schemas import (
     AnomalyRequest,
     AnomalyResponse,
+    LlmTestRequest,
+    LlmTestResponse,
     PredictionRequest,
     PredictionResponse,
     SummaryRequest,
@@ -70,3 +72,18 @@ def generate_summary(request: SummaryRequest) -> SummaryResponse:
     """
     result = summarizer.summarize(request.model_dump())
     return SummaryResponse(**result)
+
+
+@router.post(
+    "/llm-test",
+    response_model=LlmTestResponse,
+    summary="Test connectivity to the configured LLM provider",
+)
+def test_llm_connection(request: LlmTestRequest) -> LlmTestResponse:
+    """Live round-trip check used by yner_main's AI Settings "Test Connection" action.
+
+    Sends a trivial chat-completion request with the given (or saved) provider/model/key and
+    reports success, latency, and the raw reply, or a human-readable error. Never raises.
+    """
+    result = summarizer.test_connection(request.model_dump())
+    return LlmTestResponse(**result)

@@ -121,3 +121,24 @@ class SummaryResponse(BaseModel):
     model: str
     fallback: bool = False
     generated_at: datetime
+
+
+class LlmTestRequest(BaseModel):
+    """Connectivity check for the AI Settings page — same override fields as
+    :class:`SummaryRequest`, minus any attendance stats."""
+
+    provider: Optional[str] = None
+    model: Optional[str] = None
+    api_key: Optional[str] = None
+    base_url: Optional[str] = None
+
+
+class LlmTestResponse(BaseModel):
+    ok: bool
+    provider: str
+    model: str
+    base_url: str
+    latency_ms: int
+    reply: Optional[str] = None
+    error: Optional[str] = None
+    generated_at: datetime

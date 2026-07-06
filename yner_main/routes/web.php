@@ -56,6 +56,7 @@ Route::middleware('auth')->group(function () {
 
     Route::get('/settings/ai', [AiSettingController::class, 'edit'])->name('ai-settings.edit');
     Route::put('/settings/ai', [AiSettingController::class, 'update'])->name('ai-settings.update');
+    Route::post('/settings/ai/test', [AiSettingController::class, 'test'])->name('ai-settings.test');
 
     // Forms are rendered as modals on each index page, so create/edit GET pages are unused.
     Route::resource('departments', DepartmentController::class)->except(['show', 'create', 'edit']);

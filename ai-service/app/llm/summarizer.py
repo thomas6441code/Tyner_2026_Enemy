@@ -161,6 +161,99 @@ def _fallback(stats: dict) -> dict:
     }
 
 
+def test_connection(overrides: dict) -> dict:
+    """Live connectivity check for the AI Settings page (Admin "Test Connection" action).
+
+    Sends a trivial chat-completion request to the configured provider/model/key and reports
+    whether it succeeded, how long it took, and the model's raw reply — or a human-readable
+    error otherwise. Never raises; the API key itself is never echoed back.
+    """
+    config = _resolve_config(overrides)
+    started = datetime.now(timezone.utc)
+
+    if not config["api_key"]:
+        return {
+            "ok": False,
+            "provider": config["provider"],
+            "model": config["model"],
+            "base_url": config["base_url"],
+            "latency_ms": 0,
+            "reply": None,
+            "error": "No API key configured.",
+            "generated_at": started,
+        }
+
+    try:
+        base_url = config["base_url"].rstrip("/")
+        headers = {
+            "Authorization": f"Bearer {config['api_key']}",
+            "Content-Type": "application/json",
+        }
+        if "openrouter.ai" in base_url and settings.openrouter_referer:
+            headers["HTTP-Referer"] = settings.openrouter_referer
+            headers["X-Title"] = settings.openrouter_title
+
+        response = httpx.post(
+            f"{base_url}/chat/completions",
+            headers=headers,
+            json={
+                "model": config["model"],
+                "max_tokens": 16,
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": "Reply with the single word OK to confirm connectivity.",
+                    },
+                ],
+            },
+            timeout=settings.llm_timeout_seconds,
+        )
+        latency_ms = int((datetime.now(timezone.utc) - started).total_seconds() * 1000)
+        response.raise_for_status()
+        text = (response.json()["choices"][0]["message"]["content"] or "").strip()
+
+        return {
+            "ok": True,
+            "provider": config["provider"],
+            "model": config["model"],
+            "base_url": config["base_url"],
+            "latency_ms": latency_ms,
+            "reply": text,
+            "error": None,
+            "generated_at": datetime.now(timezone.utc),
+        }
+    except httpx.HTTPStatusError as exc:
+        latency_ms = int((datetime.now(timezone.utc) - started).total_seconds() * 1000)
+        detail = exc.response.text[:300] if exc.response is not None else str(exc)
+        error = (
+            f"HTTP {exc.response.status_code}: {detail}" if exc.response is not None else str(exc)
+        )
+        logger.warning("LLM test connection failed (%s)", detail)
+        return {
+            "ok": False,
+            "provider": config["provider"],
+            "model": config["model"],
+            "base_url": config["base_url"],
+            "latency_ms": latency_ms,
+            "reply": None,
+            "error": error,
+            "generated_at": datetime.now(timezone.utc),
+        }
+    except Exception as exc:  # noqa: BLE001 — any network/parse failure must degrade, not crash.
+        latency_ms = int((datetime.now(timezone.utc) - started).total_seconds() * 1000)
+        logger.warning("LLM test connection failed (%s)", exc)
+        return {
+            "ok": False,
+            "provider": config["provider"],
+            "model": config["model"],
+            "base_url": config["base_url"],
+            "latency_ms": latency_ms,
+            "reply": None,
+            "error": str(exc),
+            "generated_at": datetime.now(timezone.utc),
+        }
+
+
 def summarize(stats: dict) -> dict:
     """Return a narrative summary of the aggregated stats. Never raises."""
     config = _resolve_config(stats)

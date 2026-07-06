@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\AiSetting;
+use App\Services\AiInsightsClient;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Gate;
@@ -60,5 +62,42 @@ class AiSettingController extends Controller
         $setting->save();
 
         return back()->with('status', 'AI settings updated.');
+    }
+
+    /**
+     * "Test Connection" — a live round-trip to the configured LLM provider, used from the AI
+     * Settings page so an admin can verify provider/model/key changes before saving. A blank
+     * `api_key` in the request falls back to the already-saved key (mirrors update()'s
+     * "leave blank to keep" behaviour), so testing works without re-entering a saved key.
+     */
+    public function test(Request $request): JsonResponse
+    {
+        Gate::authorize('manageAiSettings');
+
+        $validated = $request->validate([
+            'provider' => ['required', 'string', 'max:50'],
+            'base_url' => ['required', 'url', 'max:255'],
+            'model' => ['required', 'string', 'max:255'],
+            'api_key' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        $setting = AiSetting::current();
+        $apiKey = filled($validated['api_key'] ?? null) ? $validated['api_key'] : $setting->api_key;
+
+        $result = app(AiInsightsClient::class)->testConnection([
+            'provider' => $validated['provider'],
+            'base_url' => $validated['base_url'],
+            'model' => $validated['model'],
+            'api_key' => $apiKey,
+        ]);
+
+        if ($result === null) {
+            return response()->json([
+                'ok' => false,
+                'error' => 'The AI service is unreachable. Confirm ai-service is running and try again.',
+            ], 502);
+        }
+
+        return response()->json($result);
     }
 }

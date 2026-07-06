@@ -62,6 +62,19 @@ class AiInsightsClient
     }
 
     /**
+     * Live connectivity check for the AI Settings page's "Test Connection" action. Unlike
+     * {@see summarize()}, the provider/model/key here come straight from the (possibly unsaved)
+     * form the admin is editing, so they can verify changes before hitting Save.
+     *
+     * @param  array{provider: string, base_url: string, model: string, api_key: ?string}  $config
+     * @return array{ok: bool, provider: string, model: string, base_url: string, latency_ms: int, reply: ?string, error: ?string, generated_at: string}|null
+     */
+    public function testConnection(array $config): ?array
+    {
+        return $this->post('/api/analysis/llm-test', $config);
+    }
+
+    /**
      * @param  array<string, mixed>  $payload
      * @return array<string, mixed>|null
      */

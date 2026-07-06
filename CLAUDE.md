@@ -8,13 +8,13 @@ Whenever a plan is created (e.g. via plan mode) and approved, write the full pla
 
 ## Project overview
 
-**Employee Attendance & Permission Management System (EAPMS)** — Final Year Project for IFM. Biometric attendance and HR permission/leave management are synchronized so approved absences never show as "Absent" in reports. Adds AI features: anomaly detection, absenteeism prediction (scikit-learn), and natural-language report summaries via Claude API.
+**Employee Attendance & Permission Management System (EAPMS)** — Final Year Project for IFM. Biometric attendance and HR permission/leave management are synchronized so approved absences never show as "Absent" in reports. Adds AI features: anomaly detection, absenteeism prediction (scikit-learn), and natural-language report summaries via an OpenRouter/OpenAI-compatible LLM.
 
 ## Three-service architecture
 
 ```
 yner_main/    — Laravel 12 / PHP 8.2  — core app, business logic, REST API, MySQL (port 8000)
-ai-service/   — Python / FastAPI      — scikit-learn ML + Claude API summarization  (port 8001)
+ai-service/   — Python / FastAPI      — scikit-learn ML + LLM report summarization (port 8001)
 bio-service/  — Python / FastAPI      — ZKTeco/Hikvision biometric adapter          (port 8002)
 ```
 
@@ -66,7 +66,7 @@ docker compose down
 
 **Biometric adapter is device-agnostic:** `BiometricDriver` abstract class in `bio-service/app/drivers/base.py` with `ZKTecoDriver`, `HikvisionDriver`, and `StubDriver` implementations. During dev, `StubDriver` generates deterministic test punches. Real drivers are implemented in Phase 3.
 
-**AI is hybrid:** `ai-service` runs scikit-learn models internally (Isolation Forest for anomaly detection, random forest for risk scores). External Claude API is used only for prose monthly report summaries — send aggregated stats only, never PII. Always implement graceful fallback when Claude API is unavailable.
+**AI is hybrid:** `ai-service` runs scikit-learn models internally (Isolation Forest for anomaly detection, random forest for risk scores). An external LLM, called through an OpenAI-compatible Chat Completions API (OpenRouter by default; any compatible endpoint works), is used only for prose monthly report summaries — send aggregated stats only, never PII. Provider, model, and API key are Admin-configurable at runtime from the AI Settings page (`/settings/ai` in yner_main, backed by `App\Models\AiSetting`) and sent to `ai-service` per-request via `AiInsightsClient`; `ai-service`'s own `LLM_*` env vars are only a fallback for standalone use. Always implement graceful fallback when no key is configured or the LLM call fails.
 
 **Sync engine is the core innovation (Phase 6):** When HR approves a permission/leave, a Laravel event triggers a sync job that overwrites `attendance_records.status` from Absent/null → the correct approved status. Must be idempotent, retroactive, and fully audit-logged.
 
@@ -101,6 +101,6 @@ docker compose down
 - **Python (pytest):** `pytest` in each service dir. Includes `StubDriver` tests and FastAPI health endpoint tests.
 - **CI:** `.github/workflows/ci.yml` — three parallel jobs, all must pass before merging.
 
-## Claude API usage (ai-service)
+## LLM usage (ai-service)
 
-Use `claude-sonnet-4-6` or newer. Send only aggregated monthly stats (headcounts, rates, patterns) — never employee names or raw records. Cache summaries in `report_summaries` to avoid redundant calls.
+Report summaries call an OpenAI-compatible Chat Completions endpoint (`{base_url}/chat/completions`) — OpenRouter by default (e.g. `anthropic/claude-sonnet-4.5`, `openai/gpt-4o`, `google/gemini-2.5-pro`), or any other OpenAI-compatible provider by changing the base URL. Provider/model/API key are set from yner_main's AI Settings page, not hardcoded. Send only aggregated monthly stats (headcounts, rates, patterns) — never employee names or raw records. Cache summaries in `report_summaries` to avoid redundant calls.

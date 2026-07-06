@@ -217,13 +217,19 @@ ERD/DFD/Use-Case diagrams are produced in Phase 1.
 - Triggers now fire from permission submissions/reviews, AI scoring, report generation, and the scheduled sign-in reminder command.
 - **Deliverable:** notification center + email-ready notification classes + morning reminder scheduler. _(Maps: objective 5; 6.6.4)_
 
-### Phase 10 — Reporting, Dashboards & Decision Support
+### Phase 10 — Reporting, Dashboards & Decision Support ✅ **COMPLETE**
+
+> Plan: `prompt/phase-10-reporting-dashboards.md`. Implemented as `App\Services\AttendanceReportAggregator`
+> (permission-aware per-employee report over any date range) + `ReportController` (Inertia page,
+> CSV `streamDownload`, PDF via `barryvdh/laravel-dompdf`), gated by a new `viewReports` Gate (Admin/HR).
+> The Admin dashboard's placeholder chart generators were replaced with real `attendance_records`
+> analytics, and an AI decision-support widget (high-risk employees + anomaly count) was added.
 
 **Goal:** Accurate reports that reflect permissions + AI insights.
 
 - Monthly/range attendance reports (now permission-aware — no false absences).
-- Export **PDF/Excel**; analytics dashboards (charts) for trends, anomalies, risk.
-- Surface AI summary + predictions for management decision support.
+- Export **PDF/CSV** (CSV opens natively in Excel — dependency-free); analytics dashboards (charts) for trends, anomalies, risk.
+- Surface AI summary + predictions for management decision support (Reports page panel + dashboard widget).
 - **Deliverable:** report module + dashboards. _(Maps: objective 6; expected outcomes 1–6)_
 
 ### Phase 11 — Testing & QA

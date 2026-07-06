@@ -3,7 +3,35 @@ from fastapi import FastAPI
 from app.routers import health
 from app.services.scheduler import start_scheduler
 
-app = FastAPI(title="IFM Biometric Adapter", version="0.1.0")
+DESCRIPTION = """
+Device-agnostic **biometric adapter** for the Employee Attendance & Permission Management
+System (EAPMS).
+
+This service runs a background scheduler that polls enrolled ZKTeco / Hikvision devices (or a
+deterministic `StubDriver` in development), normalizes the punch events, and **pushes** them to
+`yner_main` (Laravel) at `POST /api/biometric/ingest` using the signed `X-Internal-Secret`
+header. It is push-oriented, so its own HTTP surface is intentionally minimal.
+
+### Driver abstraction
+`BiometricDriver` (see `app/drivers/base.py`) with `ZKTecoDriver`, `HikvisionDriver` and
+`StubDriver` implementations, selected by `driver_factory`.
+"""
+
+tags_metadata = [
+    {"name": "health", "description": "Liveness probe used by `eapms:status` and Docker health checks."},
+]
+
+app = FastAPI(
+    title="EAPMS Biometric Adapter",
+    version="0.1.0",
+    description=DESCRIPTION,
+    openapi_tags=tags_metadata,
+    contact={"name": "EAPMS", "url": "http://localhost:8000"},
+    license_info={"name": "Proprietary — IFM Final Year Project"},
+    docs_url="/docs",
+    redoc_url="/redoc",
+    openapi_url="/openapi.json",
+)
 
 app.include_router(health.router)
 

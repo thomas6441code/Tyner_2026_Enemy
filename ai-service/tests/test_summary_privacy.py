@@ -58,3 +58,22 @@ def test_prompt_builder_ignores_injected_pii():
 def test_system_prompt_states_the_privacy_contract():
     assert "never" in summarizer.SYSTEM_PROMPT.lower()
     assert "name" in summarizer.SYSTEM_PROMPT.lower()
+
+
+def test_prompt_builder_ignores_llm_config_overrides():
+    """provider/model/api_key/base_url are per-request LLM config, not aggregate stats —
+    they must never be echoed into the outbound prompt."""
+    stats = {
+        "period_label": "June 2026",
+        "scope": "Engineering department",
+        "attendance_rate": 0.92,
+        "provider": "openrouter",
+        "model": "anthropic/claude-sonnet-4.5",
+        "api_key": "sk-or-super-secret-value",
+        "base_url": "https://openrouter.ai/api/v1",
+    }
+
+    prompt = summarizer._build_user_prompt(stats)
+
+    assert "sk-or-super-secret-value" not in prompt
+    assert "openrouter" not in prompt.lower()

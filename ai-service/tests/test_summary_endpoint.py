@@ -36,7 +36,7 @@ def test_summary_rejects_wrong_secret():
 
 
 def test_summary_falls_back_without_api_key(monkeypatch):
-    monkeypatch.setattr(settings, "anthropic_api_key", "")
+    monkeypatch.setattr(settings, "llm_api_key", "")
     resp = client.post("/api/analysis/summary", json=STATS, headers=AUTH)
     assert resp.status_code == 200
     body = resp.json()
@@ -49,8 +49,8 @@ def test_summary_falls_back_without_api_key(monkeypatch):
     assert "improved" in body["narrative"]
 
 
-def test_summary_parses_claude_json(monkeypatch):
-    """When Claude returns valid JSON, it is parsed into the structured response."""
+def test_summary_parses_llm_json(monkeypatch):
+    """When the LLM returns valid JSON, it is parsed into the structured response."""
 
     canned = {
         "narrative": "Attendance was strong this month.",
@@ -63,7 +63,7 @@ def test_summary_parses_claude_json(monkeypatch):
 
         return {
             **canned,
-            "model": "claude-sonnet-4-6",
+            "model": "anthropic/claude-sonnet-4.5",
             "fallback": False,
             "generated_at": datetime.now(timezone.utc),
         }

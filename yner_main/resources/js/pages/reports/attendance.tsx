@@ -16,6 +16,7 @@ import { route } from 'ziggy-js';
 import { BarChart } from '@/components/charts/bar-chart';
 import { LineAreaChart } from '@/components/charts/line-area-chart';
 import { StatCard } from '@/components/stat-card';
+import { TablePagination } from '@/components/table-pagination';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -23,6 +24,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { usePagination } from '@/hooks/use-pagination';
 
 import AppLayout from '@/layouts/app-layout';
 
@@ -107,6 +109,8 @@ export default function AttendanceReport({
     };
 
     const { meta, totals, rows, trend, statusDistribution } = report;
+
+    const { page, pageSize, pageCount, paginated: paginatedRows, total, setPage, setPageSize } = usePagination(rows);
 
     return (
         <AppLayout>
@@ -304,14 +308,14 @@ export default function AttendanceReport({
                             </TableRow>
                         </TableHeader>
                         <TableBody>
-                            {rows.length === 0 ? (
+                            {paginatedRows.length === 0 ? (
                                 <TableRow>
                                     <TableCell colSpan={9} className="py-8 text-center text-muted-foreground">
                                         No employees in scope.
                                     </TableCell>
                                 </TableRow>
                             ) : (
-                                rows.map((row) => (
+                                paginatedRows.map((row) => (
                                     <TableRow key={row.id}>
                                         <TableCell>
                                             <div className="font-medium">{row.name}</div>
@@ -330,6 +334,16 @@ export default function AttendanceReport({
                             )}
                         </TableBody>
                     </Table>
+
+                    <TablePagination
+                        page={page}
+                        pageCount={pageCount}
+                        pageSize={pageSize}
+                        total={total}
+                        onPageChange={setPage}
+                        onPageSizeChange={setPageSize}
+                        className="mt-3 border-t border-border pt-3"
+                    />
                 </CardContent>
             </Card>
         </AppLayout>

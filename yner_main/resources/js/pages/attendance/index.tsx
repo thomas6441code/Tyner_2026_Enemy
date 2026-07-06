@@ -18,9 +18,11 @@ import {
     AttendanceCorrectionDialog,
     type AttendanceCorrectionRecord,
 } from '@/components/attendance-correction-dialog';
+import { TablePagination } from '@/components/table-pagination';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import { usePagination } from '@/hooks/use-pagination';
 import AppLayout from '@/layouts/app-layout';
 import { cn } from '@/lib/utils';
 
@@ -159,6 +161,13 @@ export default function AttendanceIndex({
             row.role.toLowerCase().includes(query.toLowerCase()),
     );
 
+    const { page, pageSize, pageCount, paginated, total, setPage, setPageSize, reset } = usePagination(filtered);
+
+    function handleQueryChange(value: string) {
+        setQuery(value);
+        reset();
+    }
+
     return (
         <AppLayout>
             <Head title="Employee Attendance" />
@@ -217,7 +226,7 @@ export default function AttendanceIndex({
                             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                             <input
                                 value={query}
-                                onChange={(e) => setQuery(e.target.value)}
+                                onChange={(e) => handleQueryChange(e.target.value)}
                                 placeholder="Search anything …"
                                 className="h-9 w-full rounded-lg border border-input bg-muted/40 pl-9 pr-3 text-sm outline-none placeholder:text-muted-foreground focus:border-ring focus:bg-background focus:ring-1 focus:ring-ring"
                             />
@@ -263,7 +272,7 @@ export default function AttendanceIndex({
                                 </tr>
                             </thead>
                             <tbody>
-                                {filtered.length === 0 ? (
+                                {paginated.length === 0 ? (
                                     <tr>
                                         <td
                                             colSpan={days.length + 1}
@@ -273,7 +282,7 @@ export default function AttendanceIndex({
                                         </td>
                                     </tr>
                                 ) : (
-                                    filtered.map((row, index) => (
+                                    paginated.map((row, index) => (
                                         <tr key={row.id} className="group">
                                             <td className="sticky left-0 z-10 border-t border-border bg-card px-3 py-3 group-hover:bg-muted/40">
                                                 <div className="flex items-center gap-3">
@@ -332,6 +341,16 @@ export default function AttendanceIndex({
                             </tbody>
                         </table>
                     </div>
+
+                    <TablePagination
+                        page={page}
+                        pageCount={pageCount}
+                        pageSize={pageSize}
+                        total={total}
+                        onPageChange={setPage}
+                        onPageSizeChange={setPageSize}
+                        className="border-t border-border px-4 py-3"
+                    />
                 </CardContent>
             </Card>
 

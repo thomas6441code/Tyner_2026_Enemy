@@ -1,6 +1,7 @@
 import { Head } from '@inertiajs/react';
 import { AlertTriangle, Brain, Gauge, TrendingUp } from 'lucide-react';
 
+import { TablePagination } from '@/components/table-pagination';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -11,6 +12,7 @@ import {
     TableHeader,
     TableRow,
 } from '@/components/ui/table';
+import { usePagination } from '@/hooks/use-pagination';
 import AppLayout from '@/layouts/app-layout';
 
 interface Anomaly {
@@ -71,6 +73,9 @@ export default function AiInsights({
     modelVersion,
 }: AiInsightsProps) {
     const highRisk = predictions.filter((p) => p.risk_level === 'high').length;
+
+    const predictionsPage = usePagination(predictions);
+    const anomaliesPage = usePagination(anomalies);
 
     return (
         <AppLayout>
@@ -150,7 +155,7 @@ export default function AiInsights({
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
-                                    {predictions.map((p) => (
+                                    {predictionsPage.paginated.map((p) => (
                                         <TableRow key={p.id}>
                                             <TableCell className="font-medium">{p.employee}</TableCell>
                                             <TableCell>
@@ -166,6 +171,17 @@ export default function AiInsights({
                             </Table>
                         )}
                     </CardContent>
+                    {predictions.length > 0 && (
+                        <TablePagination
+                            page={predictionsPage.page}
+                            pageCount={predictionsPage.pageCount}
+                            pageSize={predictionsPage.pageSize}
+                            total={predictionsPage.total}
+                            onPageChange={predictionsPage.setPage}
+                            onPageSizeChange={predictionsPage.setPageSize}
+                            className="border-t border-border px-6 py-3"
+                        />
+                    )}
                 </Card>
 
                 <Card>
@@ -218,7 +234,7 @@ export default function AiInsights({
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {anomalies.map((a) => (
+                                {anomaliesPage.paginated.map((a) => (
                                     <TableRow key={a.id}>
                                         <TableCell className="font-medium">{a.employee}</TableCell>
                                         <TableCell>{a.work_date}</TableCell>
@@ -233,6 +249,17 @@ export default function AiInsights({
                         </Table>
                     )}
                 </CardContent>
+                {anomalies.length > 0 && (
+                    <TablePagination
+                        page={anomaliesPage.page}
+                        pageCount={anomaliesPage.pageCount}
+                        pageSize={anomaliesPage.pageSize}
+                        total={anomaliesPage.total}
+                        onPageChange={anomaliesPage.setPage}
+                        onPageSizeChange={anomaliesPage.setPageSize}
+                        className="border-t border-border px-6 py-3"
+                    />
+                )}
             </Card>
         </AppLayout>
     );

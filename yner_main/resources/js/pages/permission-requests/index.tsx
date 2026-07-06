@@ -53,7 +53,7 @@ interface PermissionsIndexProps {
 }
 
 const statusVariant: Record<string, BadgeProps['variant']> = {
-    pending: 'default',
+    pending: 'outline',
     approved: 'success',
     rejected: 'destructive',
     cancelled: 'secondary',

@@ -124,3 +124,8 @@ Laravel  "Generate summary"  (ReportSummaryController@store)
   deterministic **template** narrative built from the same numbers, marked `fallback = true`. If
   the AI service itself is unreachable, Laravel flashes a friendly message and writes nothing — no
   crash at any layer.
+
+## Quantitative evaluation
+
+Precision/recall of the anomaly and prediction models against a labeled sample is measured and
+documented in [`ml-evaluation.md`](ml-evaluation.md) (Phase 11).

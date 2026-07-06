@@ -232,14 +232,23 @@ ERD/DFD/Use-Case diagrams are produced in Phase 1.
 - Surface AI summary + predictions for management decision support (Reports page panel + dashboard widget).
 - **Deliverable:** report module + dashboards. _(Maps: objective 6; expected outcomes 1–6)_
 
-### Phase 11 — Testing & QA
+### Phase 11 — Testing & QA ✅ **COMPLETE**
+
+> Plan: `prompt/phase-11-testing-qa.md`. Baseline suites were already green; Phase 11 closed the
+> verification gaps: a documented ML precision/recall evaluation on a seeded labeled sample
+> (`docs/ai/ml-evaluation.md`), a consolidated role × route authorization matrix, an
+> aggregates-only/PII guardrail on the Claude path, report date-filter validation, and a UAT
+> traceability script with sign-off (`docs/uat/uat-script.md`). Final suites:
+> **Laravel 130 · ai-service 25 · bio-service 19** (all green; Pint + ruff/black clean).
 
 **Goal:** Verify every objective and AI feature.
 
 - Laravel **Pest/PHPUnit** (unit + feature), Python **pytest** (drivers, ML, API).
-- ML evaluation (precision/recall on labeled sample; document metrics).
-- Integration tests across the 3 services; security checks (authz, input validation, secrets).
-- **UAT script** mapping each test to an objective/AI feature (traceability).
+- ML evaluation (precision/recall on labeled sample; document metrics) — anomaly detection
+  P/R = 1.00/1.00; absenteeism-risk P/R = 0.75/1.00 (see `docs/ai/ml-evaluation.md`).
+- Integration tests across the 3 services; security checks (authz matrix, input validation,
+  signed-secret handshake both directions).
+- **UAT script** mapping each test to an objective/AI feature (traceability) — `docs/uat/uat-script.md`.
 - **Deliverable:** green test suite + UAT sign-off. _(Maps: 6.3.5)_
 
 ### Phase 12 — Documentation

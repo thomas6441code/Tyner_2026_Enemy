@@ -58,25 +58,48 @@ class ReportController extends Controller
             $handle = fopen('php://output', 'wb');
 
             fputcsv($handle, [
-                'Employee Code', 'Name', 'Department', 'Present', 'Late', 'Absent',
-                'Leave', 'Worked Hours', 'Late Minutes', 'Attendance %', 'Punctuality %',
+                'Employee Code',
+                'Name',
+                'Department',
+                'Present',
+                'Late',
+                'Absent',
+                'Leave',
+                'Worked Hours',
+                'Late Minutes',
+                'Attendance %',
+                'Punctuality %',
             ]);
 
             foreach ($report['rows'] as $row) {
                 fputcsv($handle, [
-                    $row['employee_code'], $row['name'], $row['department'],
-                    $row['present'], $row['late'], $row['absent'], $row['leave'],
-                    $row['worked_hours'], $row['late_minutes'],
-                    $row['attendance_rate'], $row['punctuality_rate'],
+                    $row['employee_code'],
+                    $row['name'],
+                    $row['department'],
+                    $row['present'],
+                    $row['late'],
+                    $row['absent'],
+                    $row['leave'],
+                    $row['worked_hours'],
+                    $row['late_minutes'],
+                    $row['attendance_rate'],
+                    $row['punctuality_rate'],
                 ]);
             }
 
             $totals = $report['totals'];
             fputcsv($handle, [
-                'TOTAL', "{$totals['employees']} employees", '',
-                $totals['present'], $totals['late'], $totals['absent'], $totals['leave'],
-                $totals['worked_hours'], $totals['late_minutes'],
-                $totals['attendance_rate'], $totals['punctuality_rate'],
+                'TOTAL',
+                "{$totals['employees']} employees",
+                '',
+                $totals['present'],
+                $totals['late'],
+                $totals['absent'],
+                $totals['leave'],
+                $totals['worked_hours'],
+                $totals['late_minutes'],
+                $totals['attendance_rate'],
+                $totals['punctuality_rate'],
             ]);
 
             fclose($handle);
@@ -98,7 +121,7 @@ class ReportController extends Controller
         $filename = "attendance-report-{$from->toDateString()}_to_{$to->toDateString()}.pdf";
 
         return Pdf::loadView('reports.attendance-pdf', ['report' => $report])
-            ->setPaper('a4', 'landscape')
+            ->setPaper('a4', 'portrait')
             ->download($filename);
     }
 
@@ -152,11 +175,11 @@ class ReportController extends Controller
 
         $highRisk = AiPrediction::with('employee:id,first_name,last_name')
             ->where('risk_level', 'high')
-            ->when($employeeIds !== null, fn ($q) => $q->whereIn('employee_id', $employeeIds))
+            ->when($employeeIds !== null, fn($q) => $q->whereIn('employee_id', $employeeIds))
             ->orderByDesc('risk_score')
             ->limit(5)
             ->get()
-            ->map(fn (AiPrediction $p) => [
+            ->map(fn(AiPrediction $p) => [
                 'employee' => $p->employee?->fullName() ?? "#{$p->employee_id}",
                 'risk_score' => round($p->risk_score, 3),
             ])
@@ -184,6 +207,6 @@ class ReportController extends Controller
             'from' => $from->toDateString(),
             'to' => $to->toDateString(),
             'department_id' => $department?->id,
-        ], fn ($value) => $value !== null);
+        ], fn($value) => $value !== null);
     }
 }

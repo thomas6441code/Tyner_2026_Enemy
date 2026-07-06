@@ -1,14 +1,18 @@
 """External LLM report summarization (Phase 8, proposal feature 6.6.5).
 
 Turns Laravel's aggregated monthly attendance statistics into a human-readable narrative via
-the **Claude Messages API**. This is the *external* half of the project's hybrid AI answer
-(the internal scikit-learn models are Phase 7).
+an **OpenAI-compatible Chat Completions API** — OpenRouter by default, but any compatible
+endpoint works by pointing ``base_url`` elsewhere. Provider, model, and API key are resolved
+per-request from fields yner_main's AI Settings page sends alongside the stats; the service's
+own ``LLM_*`` env vars are only a fallback for standalone dev/testing. This is the *external*
+half of the project's hybrid AI answer (the internal scikit-learn models are Phase 7).
 
 Guardrails baked in here:
 
 - **Privacy** — the caller (Laravel) only ever sends aggregate counts/rates + a department
-  label; nothing in this module reintroduces PII.
-- **Graceful fallback** — if ``ANTHROPIC_API_KEY`` is unset, or the API errors/times out, or the
+  label (plus the provider/model/key overrides); nothing in this module reintroduces PII, and
+  the prompt builder only reads its own whitelist of stat keys.
+- **Graceful fallback** — if no API key is configured, or the API errors/times out, or the
   response can't be parsed, ``summarize`` returns a deterministic **template** narrative with
   ``fallback=True`` instead of raising. The endpoint therefore always returns something usable.
 """
@@ -19,6 +23,8 @@ import json
 import logging
 import re
 from datetime import datetime, timezone
+
+import httpx
 
 from ..config import settings
 
@@ -35,6 +41,16 @@ SYSTEM_PROMPT = (
     '(3-5 short bullet strings), "recommendations": string[] (2-4 short actionable bullet '
     "strings)}."
 )
+
+
+def _resolve_config(stats: dict) -> dict:
+    """Pick provider/model/key/base_url from the request, falling back to service defaults."""
+    return {
+        "provider": stats.get("provider") or settings.llm_provider,
+        "model": stats.get("model") or settings.llm_model,
+        "api_key": stats.get("api_key") or settings.llm_api_key,
+        "base_url": stats.get("base_url") or settings.llm_base_url,
+    }
 
 
 def _pct(value: float | None) -> str:
@@ -98,7 +114,7 @@ def _trend_phrase(stats: dict) -> str:
 
 
 def _fallback(stats: dict) -> dict:
-    """Deterministic template narrative used whenever Claude is unavailable."""
+    """Deterministic template narrative used whenever the LLM is unavailable."""
     scope = stats.get("scope", "Organization-wide")
     period = stats.get("period_label", "this period")
     headcount = stats.get("headcount", 0)
@@ -147,39 +163,54 @@ def _fallback(stats: dict) -> dict:
 
 def summarize(stats: dict) -> dict:
     """Return a narrative summary of the aggregated stats. Never raises."""
-    if not settings.anthropic_api_key:
-        logger.info("ANTHROPIC_API_KEY not set — using template fallback for report summary.")
+    config = _resolve_config(stats)
+
+    if not config["api_key"]:
+        logger.info("No LLM API key configured — using template fallback for report summary.")
         return _fallback(stats)
 
     try:
-        import anthropic
+        base_url = config["base_url"].rstrip("/")
+        headers = {
+            "Authorization": f"Bearer {config['api_key']}",
+            "Content-Type": "application/json",
+        }
+        if "openrouter.ai" in base_url and settings.openrouter_referer:
+            headers["HTTP-Referer"] = settings.openrouter_referer
+            headers["X-Title"] = settings.openrouter_title
 
-        client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
-        message = client.messages.create(
-            model=settings.claude_model,
-            max_tokens=1024,
-            system=SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": _build_user_prompt(stats)}],
+        response = httpx.post(
+            f"{base_url}/chat/completions",
+            headers=headers,
+            json={
+                "model": config["model"],
+                "max_tokens": 1024,
+                "messages": [
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user", "content": _build_user_prompt(stats)},
+                ],
+            },
+            timeout=settings.llm_timeout_seconds,
         )
-        text = "".join(
-            block.text for block in message.content if getattr(block, "type", None) == "text"
-        )
+        response.raise_for_status()
+        text = response.json()["choices"][0]["message"]["content"]
+
         parsed = _parse_model_json(text)
         if not parsed or not parsed.get("narrative"):
             # The model answered but not as parseable JSON — treat the raw text as the narrative.
             narrative = (text or "").strip()
             if not narrative:
-                raise ValueError("empty response from Claude")
+                raise ValueError("empty response from LLM")
             parsed = {"narrative": narrative, "highlights": [], "recommendations": []}
 
         return {
             "narrative": str(parsed.get("narrative", "")).strip(),
             "highlights": [str(h) for h in parsed.get("highlights", [])][:5],
             "recommendations": [str(r) for r in parsed.get("recommendations", [])][:4],
-            "model": settings.claude_model,
+            "model": config["model"],
             "fallback": False,
             "generated_at": datetime.now(timezone.utc),
         }
     except Exception as exc:  # noqa: BLE001 — any API/parse failure must degrade, not crash.
-        logger.warning("Claude summarization failed (%s) — using template fallback.", exc)
+        logger.warning("LLM summarization failed (%s) — using template fallback.", exc)
         return _fallback(stats)

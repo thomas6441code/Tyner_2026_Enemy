@@ -62,10 +62,11 @@ def predict_risk(request: PredictionRequest) -> PredictionResponse:
     summary="Generate monthly report narrative",
 )
 def generate_summary(request: SummaryRequest) -> SummaryResponse:
-    """Claude API monthly report summarization over aggregated stats (6.6.5).
+    """OpenRouter (OpenAI-compatible) monthly report summarization over aggregated stats (6.6.5).
 
-    Aggregates only — no PII. Degrades to a deterministic template summary when the Claude API
-    key is unset or the call fails (``fallback: true``).
+    Aggregates only — no PII. Provider/model/API key are resolved per-request (yner_main's AI
+    Settings page) with env-var fallback. Degrades to a deterministic template summary when no
+    key is configured or the call fails (``fallback: true``).
     """
     result = summarizer.summarize(request.model_dump())
     return SummaryResponse(**result)

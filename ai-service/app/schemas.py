@@ -106,6 +106,13 @@ class SummaryRequest(BaseModel):
     prev_attendance_rate: Optional[float] = None
     top_patterns: list[str] = Field(default_factory=list)
 
+    # Per-request LLM overrides sent by yner_main's AI Settings page (Admin-configurable
+    # provider/model/key). Not part of the aggregated stats — never echoed into the prompt.
+    provider: Optional[str] = None
+    model: Optional[str] = None
+    api_key: Optional[str] = None
+    base_url: Optional[str] = None
+
 
 class SummaryResponse(BaseModel):
     narrative: str

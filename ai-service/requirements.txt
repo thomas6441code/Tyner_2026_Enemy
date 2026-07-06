@@ -4,7 +4,6 @@ uvicorn[standard]==0.32.1
 pydantic==2.10.3
 pydantic-settings==2.7.0
 httpx==0.28.1
-anthropic==0.42.0
 
 # Testing & code quality
 pytest==8.3.4

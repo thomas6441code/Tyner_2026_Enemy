@@ -23,7 +23,7 @@ services:
       context: ./yner_main
       dockerfile: Dockerfile
     environment:
-      APP_NAME: "Employee Attendance & Permission Management System"
+      APP_NAME: "EAPM_System"
       APP_ENV: local
       APP_KEY: ${APP_KEY:-}
       DB_HOST: mysql
@@ -50,8 +50,10 @@ services:
     environment:
       INTERNAL_API_SECRET: ${INTERNAL_API_SECRET:-change-me-in-production}
       LARAVEL_BASE_URL: http://yner_main:8000
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      CLAUDE_MODEL: claude-sonnet-4-6
+      LLM_PROVIDER: openrouter
+      LLM_BASE_URL: https://openrouter.ai/api/v1
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_MODEL: anthropic/claude-sonnet-4.5
     ports:
       - "8001:8001"
 

@@ -18,6 +18,7 @@ export interface SharedData {
         viewDeviceEnrollments: boolean;
         viewAiInsights: boolean;
         viewReportSummaries: boolean;
+        viewReports: boolean;
     };
     flash: {
         status: string | null;

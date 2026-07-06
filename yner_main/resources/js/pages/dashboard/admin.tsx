@@ -1,5 +1,7 @@
-import { Head, usePage } from '@inertiajs/react';
+import { Head, Link, usePage } from '@inertiajs/react';
 import {
+    AlertTriangle,
+    Brain,
     Calendar,
     ChevronDown,
     Clock,
@@ -11,6 +13,7 @@ import {
     Users,
 } from 'lucide-react';
 import { ReactNode } from 'react';
+import { route } from 'ziggy-js';
 
 import { BarChart } from '@/components/charts/bar-chart';
 import { LineAreaChart } from '@/components/charts/line-area-chart';
@@ -34,6 +37,10 @@ interface AdminDashboardProps {
     byLogin: { linked: number; unlinked: number };
     topAttendants: { name: string; initials: string; percent: number; days: number }[];
     weeklyAbsent: { label: string; value: number }[];
+    decisionSupport: {
+        highRisk: { name: string; initials: string; risk: number }[];
+        anomalies: number;
+    };
 }
 
 function pad(n: number) {
@@ -106,6 +113,7 @@ export default function AdminDashboard({
     byLogin,
     topAttendants,
     weeklyAbsent,
+    decisionSupport,
 }: AdminDashboardProps) {
     const { auth } = usePage<SharedData>().props;
     const firstName = auth.user?.name.split(' ')[0] ?? 'there';
@@ -231,6 +239,63 @@ export default function AdminDashboard({
 
                 <ChartCard title="Weekly Absent">
                     <RadarChart data={weeklyAbsent} />
+                </ChartCard>
+            </div>
+
+            <div className="mt-4 grid gap-4 lg:grid-cols-3">
+                <Card className="lg:col-span-2">
+                    <CardContent className="p-5">
+                        <div className="mb-4 flex items-center justify-between">
+                            <h2 className="flex items-center gap-2 text-sm font-semibold">
+                                <Brain className="h-4 w-4 text-primary" /> AI Decision Support
+                            </h2>
+                            <Link
+                                href={route('ai-insights.index')}
+                                className="text-xs font-medium text-primary hover:underline"
+                            >
+                                View AI Insights
+                            </Link>
+                        </div>
+                        {decisionSupport.highRisk.length === 0 ? (
+                            <p className="py-8 text-center text-sm text-muted-foreground">
+                                No high-risk employees flagged. Run attendance scoring to populate this.
+                            </p>
+                        ) : (
+                            <ul className="space-y-3">
+                                {decisionSupport.highRisk.map((person) => (
+                                    <li key={person.name} className="flex items-center gap-3">
+                                        <Avatar className="h-8 w-8">
+                                            <AvatarFallback className="bg-rose-100 text-[10px] font-semibold text-rose-700">
+                                                {person.initials}
+                                            </AvatarFallback>
+                                        </Avatar>
+                                        <span className="min-w-0 flex-1 truncate text-sm font-medium">{person.name}</span>
+                                        <div className="flex w-28 items-center gap-2">
+                                            <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+                                                <div
+                                                    className="h-full rounded-full bg-rose-500"
+                                                    style={{ width: `${person.risk}%` }}
+                                                />
+                                            </div>
+                                            <span className="w-10 text-right text-xs text-muted-foreground">
+                                                {person.risk}%
+                                            </span>
+                                        </div>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </CardContent>
+                </Card>
+
+                <ChartCard title="Anomalies (30 days)">
+                    <div className="flex flex-col items-center justify-center py-6">
+                        <span className="flex h-16 w-16 items-center justify-center rounded-2xl bg-amber-100 text-amber-700">
+                            <AlertTriangle className="h-7 w-7" />
+                        </span>
+                        <div className="mt-3 text-3xl font-bold tracking-tight">{decisionSupport.anomalies}</div>
+                        <div className="text-sm text-muted-foreground">detected anomalies</div>
+                    </div>
                 </ChartCard>
             </div>
         </AppLayout>

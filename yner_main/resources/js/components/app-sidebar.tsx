@@ -1,5 +1,6 @@
 import { Link, usePage } from '@inertiajs/react';
 import {
+    BarChart3,
     Building2,
     Brain,
     CalendarCheck,
@@ -82,6 +83,13 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                     icon: Brain,
                     active: route().current('ai-insights.*'),
                     show: can.viewAiInsights,
+                },
+                {
+                    href: route('reports.index'),
+                    label: 'Reports',
+                    icon: BarChart3,
+                    active: route().current('reports.*'),
+                    show: can.viewReports,
                 },
                 {
                     href: route('report-summaries.index'),

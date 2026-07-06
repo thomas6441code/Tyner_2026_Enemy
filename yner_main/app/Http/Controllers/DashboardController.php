@@ -2,11 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\AttendanceStatus;
 use App\Enums\RoleName;
+use App\Models\AiAnomaly;
+use App\Models\AiPrediction;
+use App\Models\AttendanceRecord;
 use App\Models\Department;
 use App\Models\Employee;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -18,15 +23,20 @@ class DashboardController extends Controller
 
         if ($user->hasRole(RoleName::Admin->value)) {
             $total = Employee::count();
-            $active = Employee::where('status', 'active')->count();
             $linked = Employee::whereNotNull('user_id')->count();
+            $today = Carbon::today()->toDateString();
+
+            $todayCounts = $this->statusCounts(
+                AttendanceRecord::whereDate('work_date', $today)->get(['status'])
+            );
 
             return Inertia::render('dashboard/admin', [
                 'stats' => [
                     'total' => $total,
-                    'present' => $active,
-                    'absent' => max($total - $active, 0),
-                    'late' => (int) floor($total * 0.08),
+                    'present' => ($todayCounts[AttendanceStatus::Present->value] ?? 0)
+                        + ($todayCounts[AttendanceStatus::Late->value] ?? 0),
+                    'absent' => $todayCounts[AttendanceStatus::Absent->value] ?? 0,
+                    'late' => $todayCounts[AttendanceStatus::Late->value] ?? 0,
                 ],
                 'attendanceReport' => $this->attendanceReport(),
                 'byDepartment' => $this->byDepartment(),
@@ -36,6 +46,7 @@ class DashboardController extends Controller
                 ],
                 'topAttendants' => $this->topAttendants(),
                 'weeklyAbsent' => $this->weeklyAbsent(),
+                'decisionSupport' => $this->decisionSupport(),
             ]);
         }
 
@@ -53,27 +64,32 @@ class DashboardController extends Controller
     }
 
     /**
-     * Daily attendance line series over the last ~4 weeks. Deterministic placeholder data
-     * (no attendance_records table yet) anchored around the real headcount.
+     * Real daily attendance-rate (%) over the last ~30 days, bucketed into 10 points.
      *
      * @return array{labels: list<string>, values: list<int>, highlight: int}
      */
     private function attendanceReport(): array
     {
-        $base = max(Employee::count(), 10);
-        $start = Carbon::now()->subDays(27);
+        $start = Carbon::today()->subDays(29);
+        $records = AttendanceRecord::whereBetween('work_date', [$start->toDateString(), Carbon::today()->toDateString()])
+            ->get(['status', 'work_date']);
 
         $labels = [];
         $values = [];
-
         for ($i = 0; $i < 10; $i++) {
-            $day = $start->copy()->addDays($i * 3);
-            $labels[] = $day->format('M j');
-            $wave = sin($i / 1.6) * ($base * 0.08) + cos($i / 3) * ($base * 0.04);
-            $values[] = (int) round($base * 0.9 + $wave + (($i * 7) % 5));
+            $bucketStart = $start->copy()->addDays($i * 3);
+            $bucketEnd = $bucketStart->copy()->addDays(2);
+            $slice = $records->filter(
+                fn (AttendanceRecord $r) => $r->work_date->betweenIncluded($bucketStart, $bucketEnd)
+            );
+            $count = $slice->count();
+            $absent = $slice->where('status', AttendanceStatus::Absent)->count();
+
+            $labels[] = $bucketStart->format('M j');
+            $values[] = $count > 0 ? (int) round((($count - $absent) / $count) * 100) : 0;
         }
 
-        $highlight = array_keys($values, max($values))[0];
+        $highlight = array_keys($values, max($values))[0] ?? 0;
 
         return ['labels' => $labels, 'values' => $values, 'highlight' => $highlight];
     }
@@ -96,42 +112,106 @@ class DashboardController extends Controller
     }
 
     /**
-     * Top employees by attendance rate (real names, deterministic placeholder rates).
+     * Top employees by real attendance rate over the last 30 days.
      *
      * @return list<array{name: string, initials: string, percent: int, days: int}>
      */
     private function topAttendants(): array
     {
-        return Employee::orderBy('first_name')
-            ->take(6)
+        $start = Carbon::today()->subDays(29)->toDateString();
+        $today = Carbon::today()->toDateString();
+
+        $byEmployee = AttendanceRecord::whereBetween('work_date', [$start, $today])
+            ->get(['employee_id', 'status'])
+            ->groupBy('employee_id');
+
+        return Employee::whereIn('id', $byEmployee->keys())
+            ->orderBy('first_name')
             ->get()
-            ->map(function (Employee $employee) {
-                $percent = 100 - (($employee->id * 7) % 16);
+            ->map(function (Employee $employee) use ($byEmployee) {
+                $records = $byEmployee->get($employee->id) ?? collect();
+                $total = $records->count();
+                $present = $records->whereIn('status', [AttendanceStatus::Present, AttendanceStatus::Late])->count();
+                $percent = $total > 0 ? (int) round(($present / $total) * 100) : 0;
 
                 return [
                     'name' => $employee->fullName(),
                     'initials' => $this->initials($employee->fullName()),
                     'percent' => $percent,
-                    'days' => 22 + (($employee->id * 3) % 9),
+                    'days' => $present,
                 ];
             })
             ->sortByDesc('percent')
+            ->take(6)
             ->values()
             ->all();
     }
 
     /**
-     * Absences per weekday for the radar chart (deterministic placeholder data).
+     * Real absences per weekday over the last 30 days for the radar chart.
      *
      * @return list<array{label: string, value: int}>
      */
     private function weeklyAbsent(): array
     {
-        $pattern = [5, 6, 4, 7, 8, 3, 2];
+        $start = Carbon::today()->subDays(29)->toDateString();
+        $today = Carbon::today()->toDateString();
+
+        $records = AttendanceRecord::whereBetween('work_date', [$start, $today])
+            ->where('status', AttendanceStatus::Absent->value)
+            ->get(['work_date']);
+
+        $byWeekday = $records->groupBy(fn (AttendanceRecord $r) => $r->work_date->format('D'));
 
         return collect(['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'])
-            ->map(fn (string $label, int $i) => ['label' => $label, 'value' => $pattern[$i]])
+            ->map(fn (string $label) => ['label' => $label, 'value' => ($byWeekday->get($label)?->count() ?? 0)])
             ->all();
+    }
+
+    /**
+     * AI decision-support: highest-risk employees (latest scoring) + open anomaly count.
+     *
+     * @return array{highRisk: list<array{name: string, initials: string, risk: int}>, anomalies: int}
+     */
+    private function decisionSupport(): array
+    {
+        $highRisk = AiPrediction::with('employee:id,first_name,last_name')
+            ->where('risk_level', 'high')
+            ->orderByDesc('risk_score')
+            ->limit(5)
+            ->get()
+            ->map(fn (AiPrediction $p) => [
+                'name' => $p->employee?->fullName() ?? "#{$p->employee_id}",
+                'initials' => $this->initials($p->employee?->fullName() ?? '#'),
+                'risk' => (int) round($p->risk_score * 100),
+            ])
+            ->values()
+            ->all();
+
+        return [
+            'highRisk' => $highRisk,
+            'anomalies' => AiAnomaly::whereBetween('work_date', [
+                Carbon::today()->subDays(29)->toDateString(),
+                Carbon::today()->toDateString(),
+            ])->count(),
+        ];
+    }
+
+    /**
+     * Status → count map for a record set.
+     *
+     * @param  Collection<int, AttendanceRecord>  $records
+     * @return array<string, int>
+     */
+    private function statusCounts(Collection $records): array
+    {
+        $counts = [];
+        foreach ($records as $record) {
+            $key = $record->status->value;
+            $counts[$key] = ($counts[$key] ?? 0) + 1;
+        }
+
+        return $counts;
     }
 
     private function initials(string $name): string

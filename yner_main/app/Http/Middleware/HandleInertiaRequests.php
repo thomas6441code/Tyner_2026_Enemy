@@ -64,6 +64,7 @@ class HandleInertiaRequests extends Middleware
                 'viewDeviceEnrollments' => $user?->can('viewAny', DeviceEnrollment::class) ?? false,
                 'viewAiInsights' => $user?->can('viewAny', AiAnomaly::class) ?? false,
                 'viewReportSummaries' => $user?->can('viewAny', ReportSummary::class) ?? false,
+                'viewReports' => $user?->can('viewReports') ?? false,
             ],
             'unreadNotifications' => $user?->unreadNotifications()->count() ?? 0,
             'flash' => [

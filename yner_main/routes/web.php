@@ -10,6 +10,7 @@ use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PermissionRequestController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ReportSummaryController;
 use App\Http\Controllers\WorkScheduleController;
 use Illuminate\Support\Facades\Route;
@@ -31,6 +32,10 @@ Route::get('/ai-insights', [AiInsightController::class, 'index'])
     ->name('ai-insights.index');
 
 Route::middleware(['auth', 'verified'])->group(function () {
+    Route::get('/reports', [ReportController::class, 'index'])->name('reports.index');
+    Route::get('/reports/export/csv', [ReportController::class, 'exportCsv'])->name('reports.export.csv');
+    Route::get('/reports/export/pdf', [ReportController::class, 'exportPdf'])->name('reports.export.pdf');
+
     Route::get('/report-summaries', [ReportSummaryController::class, 'index'])->name('report-summaries.index');
     Route::post('/report-summaries', [ReportSummaryController::class, 'store'])->name('report-summaries.store');
 

@@ -77,6 +77,13 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                     active: route().current('employees.*'),
                     show: can.viewEmployees,
                 },
+                 {
+                    href: route('reports.index'),
+                    label: 'Reports',
+                    icon: BarChart3,
+                    active: route().current('reports.*'),
+                    show: can.viewReports,
+                },
                 {
                     href: route('ai-insights.index'),
                     label: 'AI Insights',
@@ -85,19 +92,12 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                     show: can.viewAiInsights,
                 },
                 {
-                    href: route('reports.index'),
-                    label: 'Reports',
-                    icon: BarChart3,
-                    active: route().current('reports.*'),
-                    show: can.viewReports,
-                },
-                {
                     href: route('report-summaries.index'),
-                    label: 'Report Summaries',
+                    label: 'AI Summaries',
                     icon: FileText,
                     active: route().current('report-summaries.*'),
                     show: can.viewReportSummaries,
-                },
+                }
             ],
         },
         {
@@ -112,7 +112,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                 },
                 {
                     href: route('work-schedules.index'),
-                    label: 'Work Schedules',
+                    label: 'Work Schedule',
                     icon: Clock,
                     active: route().current('work-schedules.*'),
                     show: can.viewWorkSchedules,

@@ -47,13 +47,12 @@ export default function ReportSummaries({ summaries, departments, defaultMonth }
 
     const submit = (e: React.FormEvent) => {
         e.preventDefault();
-        form
-            .transform((data) => ({
-                period: data.period,
-                department_id: data.department_id === ALL ? null : Number(data.department_id),
-                force: data.force,
-            }))
-            .post(route('report-summaries.store'), { preserveScroll: true });
+        form.transform((data) => ({
+            period: data.period,
+            department_id: data.department_id === ALL ? null : Number(data.department_id),
+            force: data.force,
+        }));
+        form.post(route('report-summaries.store'), { preserveScroll: true });
     };
 
     return (

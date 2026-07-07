@@ -20,7 +20,10 @@ RUN apk add --no-cache \
     curl \
     zip \
     unzip \
-    && docker-php-ext-install pdo_mysql bcmath opcache
+    icu-libs \
+    && apk add --no-cache --virtual .build-deps icu-dev \
+    && docker-php-ext-install pdo_mysql bcmath opcache intl \
+    && apk del .build-deps
 
 # Composer
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer

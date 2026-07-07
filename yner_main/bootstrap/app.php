@@ -21,6 +21,10 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'verify.internal-secret' => VerifyInternalSecret::class,
         ]);
+
+        // Trust Coolify's Traefik reverse proxy so X-Forwarded-Proto is honored
+        // and url()/asset()/route() generate https:// links instead of http://.
+        $middleware->trustProxies(at: '*');
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

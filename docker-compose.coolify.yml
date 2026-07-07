@@ -64,3 +64,8 @@ services:
 
 volumes:
   yner_main_storage:
+
+networks:
+  default:
+    name: coolify
+    external: true

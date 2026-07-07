@@ -120,6 +120,35 @@
     --shadow-soft: 0 1px 2px 0 rgb(16 24 40 / 0.06);
 }
 
+/* Thin, near-invisible scrollbars everywhere; thumb fades in a touch more on hover */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--muted-foreground) 20%, transparent) transparent;
+}
+
+*:hover {
+    scrollbar-color: color-mix(in srgb, var(--muted-foreground) 40%, transparent) transparent;
+}
+
+/* Fallback for browsers without scrollbar-width support (e.g. Safari) */
+::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    border-radius: 9999px;
+    background-color: color-mix(in srgb, var(--muted-foreground) 20%, transparent);
+}
+
+:hover::-webkit-scrollbar-thumb {
+    background-color: color-mix(in srgb, var(--muted-foreground) 40%, transparent);
+}
+
 body {
     font-family: var(--font-sans);
     background-color: var(--canvas);

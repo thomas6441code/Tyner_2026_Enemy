@@ -177,15 +177,15 @@ export default function GuestLayout({ children, slides = defaultSlides }: PropsW
     }, [paused, slides.length]);
 
     return (
-        <div className="flex min-h-screen bg-background text-foreground">
-            {/* Form panel */}
-            <div className="flex w-full flex-col px-6 py-8 sm:px-12 lg:w-1/2 xl:w-[45%]">
+        <div className="flex h-screen overflow-hidden bg-background text-foreground">
+            {/* Form panel — the only scrollable area */}
+            <div className="flex w-full flex-col overflow-y-auto px-6 py-8 sm:px-12 lg:w-1/2 xl:w-[45%]">
                 <Link href="/" className="text-center pt-2 mt-5  rounded-full w-30 h-30 flex items-center justify-center mx-auto">
                     <Logo className="text-[2.5rem]" />
                 </Link>
 
-                <div className="flex flex-1 items-center justify-center md:py-10">
-                    <div className="w-full max-w-sm">{children}</div>
+                <div className="flex md:flex-1 items-center justify-center h-fit py-10">
+                    <div className="w-full max-w-sm h-fit px-4">{children}</div>
                 </div>
 
                 <p className="text-center text-xs text-muted-foreground">

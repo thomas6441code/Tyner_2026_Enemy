@@ -1,4 +1,4 @@
-import { Head, useForm } from '@inertiajs/react';
+import { Head, Link, useForm } from '@inertiajs/react';
 import { FormEventHandler } from 'react';
 import { route } from 'ziggy-js';
 
@@ -20,14 +20,14 @@ export default function ForgotPassword({ status }: { status?: string }) {
         <GuestLayout>
             <Head title="Forgot Password" />
 
-            <div className="mb-4 text-sm text-muted-foreground">
+            <div className="mb-4 px-2 text-sm text-muted-foreground">
                 Forgot your password? No problem. Just let us know your email address and we will email you a
                 password reset link that will allow you to choose a new one.
             </div>
 
             {status && <div className="mb-4 text-sm font-medium text-emerald-600">{status}</div>}
 
-            <form onSubmit={submit} className="flex flex-col gap-4">
+            <form onSubmit={submit} className="flex px-2 flex-col gap-4">
                 <div>
                     <Label htmlFor="email">Email</Label>
                     <Input
@@ -48,6 +48,12 @@ export default function ForgotPassword({ status }: { status?: string }) {
                     </Button>
                 </div>
             </form>
+            <p className="mt-6 text-center text-sm text-muted-foreground">
+                Remember your password?{' '}
+                <Link href={route('login')} className="font-semibold text-primary underline-offset-4 hover:underline">
+                    Sign in
+                </Link>
+            </p>
         </GuestLayout>
     );
 }

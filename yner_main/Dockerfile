@@ -34,7 +34,8 @@ RUN composer install --no-dev --no-scripts --no-interaction --optimize-autoloade
 COPY . .
 COPY --from=frontend /app/public/build ./public/build
 
-RUN chown -R www-data:www-data storage bootstrap/cache
+RUN mkdir -p storage/framework/cache storage/framework/sessions storage/framework/testing storage/framework/views storage/logs bootstrap/cache \
+    && chown -R www-data:www-data storage bootstrap/cache
 
 COPY docker/nginx.conf /etc/nginx/nginx.conf
 COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf

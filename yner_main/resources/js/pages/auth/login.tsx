@@ -100,7 +100,7 @@ export default function Login({ status, canResetPassword }: { status?: string; c
                 </Button>
             </form>
 
-            <div className="my-6 flex items-center gap-3 text-xs text-muted-foreground">
+           {/*  <div className="my-6 flex items-center gap-3 text-xs text-muted-foreground">
                 <span className="h-px flex-1 bg-border" />
                 Or continue with
                 <span className="h-px flex-1 bg-border" />
@@ -108,7 +108,7 @@ export default function Login({ status, canResetPassword }: { status?: string; c
 
             <Button type="button" variant="outline" className="w-full gap-2">
                 <GoogleIcon className="h-4 w-4" /> Google
-            </Button>
+            </Button> */}
 
             <p className="mt-6 text-center text-sm text-muted-foreground">
                 Don't have an account?{' '}

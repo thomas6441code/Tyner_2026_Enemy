@@ -29,6 +29,8 @@ services:
       - yner_main_storage:/var/www/html/storage/app
     expose:
       - "8000"
+    networks:
+      - coolify
     restart: unless-stopped
 
   # ── AI Service ────────────────────────────────────────────────────────────────
@@ -45,6 +47,8 @@ services:
       LLM_MODEL: ${LLM_MODEL:-anthropic/claude-sonnet-4.5}
     expose:
       - "8001"
+    networks:
+      - coolify
     restart: unless-stopped
 
   # ── Bio Service (Biometric Adapter) ──────────────────────────────────────────
@@ -60,12 +64,13 @@ services:
       - "8002"
     depends_on:
       - yner_main
+    networks:
+      - coolify
     restart: unless-stopped
 
 volumes:
   yner_main_storage:
 
 networks:
-  default:
-    name: coolify
+  coolify:
     external: true

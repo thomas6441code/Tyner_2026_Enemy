@@ -25,32 +25,7 @@ class DashboardController extends Controller
         $user = $request->user();
 
         if ($user->hasRole(RoleName::Admin->value)) {
-            $total = Employee::count();
-            $linked = Employee::whereNotNull('user_id')->count();
-            $today = Carbon::today()->toDateString();
-
-            $todayCounts = $this->statusCounts(
-                AttendanceRecord::whereDate('work_date', $today)->get(['status'])
-            );
-
-            return Inertia::render('dashboard/admin', [
-                'stats' => [
-                    'total' => $total,
-                    'present' => ($todayCounts[AttendanceStatus::Present->value] ?? 0)
-                        + ($todayCounts[AttendanceStatus::Late->value] ?? 0),
-                    'absent' => $todayCounts[AttendanceStatus::Absent->value] ?? 0,
-                    'late' => $todayCounts[AttendanceStatus::Late->value] ?? 0,
-                ],
-                'attendanceReport' => $this->attendanceReport(),
-                'byDepartment' => $this->byDepartment(),
-                'byLogin' => [
-                    'linked' => $linked,
-                    'unlinked' => max($total - $linked, 0),
-                ],
-                'topAttendants' => $this->topAttendants(),
-                'weeklyAbsent' => $this->weeklyAbsent(),
-                'decisionSupport' => $this->decisionSupport(),
-            ]);
+            return $this->adminDashboard($request);
         }
 
         if ($user->hasRole(RoleName::HrOfficer->value)) {
@@ -58,6 +33,62 @@ class DashboardController extends Controller
         }
 
         return $this->employeeDashboard($user);
+    }
+
+    /**
+     * Executive dashboard for an Admin. Two filters, applied via query string and echoed back so
+     * the UI can reflect the active selection:
+     *   - `range`      — trailing window in days (7/30/90, default 30) for every trend aggregate.
+     *   - `department` — scope every metric to one department's employees (null/absent = all).
+     */
+    private function adminDashboard(Request $request): Response
+    {
+        $days = (int) $request->integer('range', 30);
+        if (! in_array($days, [7, 30, 90], true)) {
+            $days = 30;
+        }
+
+        $departmentId = $request->integer('department') ?: null;
+        if ($departmentId !== null && ! Department::whereKey($departmentId)->exists()) {
+            $departmentId = null;
+        }
+
+        // Employee IDs in scope; null means "all employees" (skip the whereIn entirely).
+        $employeeIds = $departmentId !== null
+            ? Employee::where('department_id', $departmentId)->pluck('id')
+            : null;
+
+        $total = $employeeIds !== null ? $employeeIds->count() : Employee::count();
+        $linked = $employeeIds !== null
+            ? Employee::where('department_id', $departmentId)->whereNotNull('user_id')->count()
+            : Employee::whereNotNull('user_id')->count();
+
+        $todayQuery = AttendanceRecord::whereDate('work_date', Carbon::today()->toDateString());
+        if ($employeeIds !== null) {
+            $todayQuery->whereIn('employee_id', $employeeIds);
+        }
+        $todayCounts = $this->statusCounts($todayQuery->get(['status']));
+
+        return Inertia::render('dashboard/admin', [
+            'stats' => [
+                'total' => $total,
+                'present' => ($todayCounts[AttendanceStatus::Present->value] ?? 0)
+                    + ($todayCounts[AttendanceStatus::Late->value] ?? 0),
+                'absent' => $todayCounts[AttendanceStatus::Absent->value] ?? 0,
+                'late' => $todayCounts[AttendanceStatus::Late->value] ?? 0,
+            ],
+            'attendanceReport' => $this->attendanceReport($days, $employeeIds),
+            'byDepartment' => $this->byDepartment(),
+            'byLogin' => [
+                'linked' => $linked,
+                'unlinked' => max($total - $linked, 0),
+            ],
+            'topAttendants' => $this->topAttendants($days, $employeeIds),
+            'weeklyAbsent' => $this->weeklyAbsent($days, $employeeIds),
+            'decisionSupport' => $this->decisionSupport($days, $employeeIds),
+            'filters' => ['range' => $days, 'department' => $departmentId],
+            'departments' => Department::orderBy('name')->get(['id', 'name']),
+        ]);
     }
 
     /**
@@ -262,21 +293,29 @@ class DashboardController extends Controller
     }
 
     /**
-     * Real daily attendance-rate (%) over the last ~30 days, bucketed into 10 points.
+     * Real daily attendance-rate (%) over the trailing window, bucketed into ~10 points.
      *
+     * @param  Collection<int, int>|null  $employeeIds  Restrict to these employees; null = all.
      * @return array{labels: list<string>, values: list<int>, highlight: int}
      */
-    private function attendanceReport(): array
+    private function attendanceReport(int $days = 30, ?Collection $employeeIds = null): array
     {
-        $start = Carbon::today()->subDays(29);
-        $records = AttendanceRecord::whereBetween('work_date', [$start->toDateString(), Carbon::today()->toDateString()])
-            ->get(['status', 'work_date']);
+        $start = Carbon::today()->subDays($days - 1);
+        $query = AttendanceRecord::whereBetween('work_date', [$start->toDateString(), Carbon::today()->toDateString()]);
+        if ($employeeIds !== null) {
+            $query->whereIn('employee_id', $employeeIds);
+        }
+        $records = $query->get(['status', 'work_date']);
+
+        // Keep the chart to ~10 points regardless of window: daily for short ranges, wider buckets otherwise.
+        $bucketSize = max(1, (int) ceil($days / 10));
+        $bucketCount = (int) ceil($days / $bucketSize);
 
         $labels = [];
         $values = [];
-        for ($i = 0; $i < 10; $i++) {
-            $bucketStart = $start->copy()->addDays($i * 3);
-            $bucketEnd = $bucketStart->copy()->addDays(2);
+        for ($i = 0; $i < $bucketCount; $i++) {
+            $bucketStart = $start->copy()->addDays($i * $bucketSize);
+            $bucketEnd = $bucketStart->copy()->addDays($bucketSize - 1);
             $slice = $records->filter(
                 fn (AttendanceRecord $r) => $r->work_date->betweenIncluded($bucketStart, $bucketEnd)
             );
@@ -287,7 +326,7 @@ class DashboardController extends Controller
             $values[] = $count > 0 ? (int) round((($count - $absent) / $count) * 100) : 0;
         }
 
-        $highlight = array_keys($values, max($values))[0] ?? 0;
+        $highlight = $values === [] ? 0 : array_keys($values, max($values))[0];
 
         return ['labels' => $labels, 'values' => $values, 'highlight' => $highlight];
     }
@@ -310,18 +349,21 @@ class DashboardController extends Controller
     }
 
     /**
-     * Top employees by real attendance rate over the last 30 days.
+     * Top employees by real attendance rate over the trailing window.
      *
+     * @param  Collection<int, int>|null  $employeeIds  Restrict to these employees; null = all.
      * @return list<array{name: string, initials: string, percent: int, days: int}>
      */
-    private function topAttendants(): array
+    private function topAttendants(int $days = 30, ?Collection $employeeIds = null): array
     {
-        $start = Carbon::today()->subDays(29)->toDateString();
+        $start = Carbon::today()->subDays($days - 1)->toDateString();
         $today = Carbon::today()->toDateString();
 
-        $byEmployee = AttendanceRecord::whereBetween('work_date', [$start, $today])
-            ->get(['employee_id', 'status'])
-            ->groupBy('employee_id');
+        $query = AttendanceRecord::whereBetween('work_date', [$start, $today]);
+        if ($employeeIds !== null) {
+            $query->whereIn('employee_id', $employeeIds);
+        }
+        $byEmployee = $query->get(['employee_id', 'status'])->groupBy('employee_id');
 
         return Employee::whereIn('id', $byEmployee->keys())
             ->orderBy('first_name')
@@ -346,18 +388,22 @@ class DashboardController extends Controller
     }
 
     /**
-     * Real absences per weekday over the last 30 days for the radar chart.
+     * Real absences per weekday over the trailing window for the radar chart.
      *
+     * @param  Collection<int, int>|null  $employeeIds  Restrict to these employees; null = all.
      * @return list<array{label: string, value: int}>
      */
-    private function weeklyAbsent(): array
+    private function weeklyAbsent(int $days = 30, ?Collection $employeeIds = null): array
     {
-        $start = Carbon::today()->subDays(29)->toDateString();
+        $start = Carbon::today()->subDays($days - 1)->toDateString();
         $today = Carbon::today()->toDateString();
 
-        $records = AttendanceRecord::whereBetween('work_date', [$start, $today])
-            ->where('status', AttendanceStatus::Absent->value)
-            ->get(['work_date']);
+        $query = AttendanceRecord::whereBetween('work_date', [$start, $today])
+            ->where('status', AttendanceStatus::Absent->value);
+        if ($employeeIds !== null) {
+            $query->whereIn('employee_id', $employeeIds);
+        }
+        $records = $query->get(['work_date']);
 
         $byWeekday = $records->groupBy(fn (AttendanceRecord $r) => $r->work_date->format('D'));
 
@@ -369,15 +415,20 @@ class DashboardController extends Controller
     /**
      * AI decision-support: highest-risk employees (latest scoring) + open anomaly count.
      *
+     * @param  Collection<int, int>|null  $employeeIds  Restrict to these employees; null = all.
      * @return array{highRisk: list<array{name: string, initials: string, risk: int}>, anomalies: int}
      */
-    private function decisionSupport(): array
+    private function decisionSupport(int $days = 30, ?Collection $employeeIds = null): array
     {
-        $highRisk = AiPrediction::with('employee:id,first_name,last_name')
+        $highRiskQuery = AiPrediction::with('employee:id,first_name,last_name')
             ->where('risk_level', 'high')
             ->orderByDesc('risk_score')
-            ->limit(5)
-            ->get()
+            ->limit(5);
+        if ($employeeIds !== null) {
+            $highRiskQuery->whereIn('employee_id', $employeeIds);
+        }
+
+        $highRisk = $highRiskQuery->get()
             ->map(fn (AiPrediction $p) => [
                 'name' => $p->employee?->fullName() ?? "#{$p->employee_id}",
                 'initials' => $this->initials($p->employee?->fullName() ?? '#'),
@@ -386,12 +437,17 @@ class DashboardController extends Controller
             ->values()
             ->all();
 
+        $anomalyQuery = AiAnomaly::whereBetween('work_date', [
+            Carbon::today()->subDays($days - 1)->toDateString(),
+            Carbon::today()->toDateString(),
+        ]);
+        if ($employeeIds !== null) {
+            $anomalyQuery->whereIn('employee_id', $employeeIds);
+        }
+
         return [
             'highRisk' => $highRisk,
-            'anomalies' => AiAnomaly::whereBetween('work_date', [
-                Carbon::today()->subDays(29)->toDateString(),
-                Carbon::today()->toDateString(),
-            ])->count(),
+            'anomalies' => $anomalyQuery->count(),
         ];
     }
 

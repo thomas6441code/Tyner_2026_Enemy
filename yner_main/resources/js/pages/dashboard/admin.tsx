@@ -1,14 +1,15 @@
-import { Head, Link, usePage } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import {
     AlertTriangle,
     Brain,
+    Building2,
     Calendar,
     ChevronDown,
     Clock,
     LogIn,
     type LucideIcon,
     MoreHorizontal,
-    SlidersHorizontal,
+    RotateCcw,
     UserX,
     Users,
 } from 'lucide-react';
@@ -20,9 +21,24 @@ import { LineAreaChart } from '@/components/charts/line-area-chart';
 import { RadarChart } from '@/components/charts/radar-chart';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Card, CardContent } from '@/components/ui/card';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuLabel,
+    DropdownMenuRadioGroup,
+    DropdownMenuRadioItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import AppLayout from '@/layouts/app-layout';
 import { cn } from '@/lib/utils';
 import type { SharedData } from '@/types';
+
+const RANGE_OPTIONS = [
+    { value: 7, label: 'Last 7 days' },
+    { value: 30, label: 'Last 30 days' },
+    { value: 90, label: 'Last 90 days' },
+] as const;
 
 interface Series {
     labels: string[];
@@ -41,6 +57,8 @@ interface AdminDashboardProps {
         highRisk: { name: string; initials: string; risk: number }[];
         anomalies: number;
     };
+    filters: { range: number; department: number | null };
+    departments: { id: number; name: string }[];
 }
 
 function pad(n: number) {
@@ -59,20 +77,20 @@ function StatCard({ icon: Icon, value, label, highlight }: StatCardProps) {
         <div
             className={cn(
                 'relative flex items-center gap-4 rounded-xl p-5 shadow-card',
-                highlight ? 'bg-primary text-slate-900' : 'bg-card text-card-foreground',
+                highlight ? 'bg-primary text-primary-foreground' : 'bg-card text-card-foreground',
             )}
         >
             <span
                 className={cn(
                     'flex h-12 w-12 shrink-0 items-center justify-center rounded-xl',
-                    highlight ? 'bg-slate-900 text-white' : 'bg-primary/10 text-primary',
+                    highlight ? 'bg-panel text-panel-foreground' : 'bg-primary/10 text-primary',
                 )}
             >
                 <Icon className="h-5 w-5" />
             </span>
             <div>
                 <div className="text-2xl font-bold leading-tight tracking-tight">{pad(value)}</div>
-                <div className={cn('text-xs font-medium uppercase tracking-wide', highlight ? 'text-slate-900/70' : 'text-muted-foreground')}>
+                <div className={cn('text-xs font-medium uppercase tracking-wide', highlight ? 'text-primary-foreground/70' : 'text-muted-foreground')}>
                     {label}
                 </div>
             </div>
@@ -80,7 +98,7 @@ function StatCard({ icon: Icon, value, label, highlight }: StatCardProps) {
                 type="button"
                 className={cn(
                     'absolute right-3 top-3 rounded-md p-1',
-                    highlight ? 'text-slate-900/60 hover:text-slate-900' : 'text-muted-foreground hover:text-foreground',
+                    highlight ? 'text-primary-foreground/60 hover:text-primary-foreground' : 'text-muted-foreground hover:text-foreground',
                 )}
                 aria-label="Card options"
             >
@@ -114,6 +132,8 @@ export default function AdminDashboard({
     topAttendants,
     weeklyAbsent,
     decisionSupport,
+    filters,
+    departments,
 }: AdminDashboardProps) {
     const { auth } = usePage<SharedData>().props;
     const firstName = auth.user?.name.split(' ')[0] ?? 'there';
@@ -122,43 +142,94 @@ export default function AdminDashboard({
     const linkedPct = Math.round((byLogin.linked / loginTotal) * 100);
     const unlinkedPct = 100 - linkedPct;
 
+    const isFiltered = filters.range !== 30 || filters.department !== null;
+    const rangeLabel = RANGE_OPTIONS.find((o) => o.value === filters.range)?.label ?? 'Last 30 days';
+    const departmentLabel = departments.find((d) => d.id === filters.department)?.name ?? 'All Departments';
+
+    /** Reload the dashboard with the current filters, overriding the given keys. */
+    function applyFilters(next: Partial<{ range: number; department: number | null }>) {
+        const range = next.range ?? filters.range;
+        const department = 'department' in next ? next.department : filters.department;
+
+        router.get(
+            route('dashboard'),
+            {
+                ...(range !== 30 ? { range } : {}),
+                ...(department !== null ? { department } : {}),
+            },
+            { preserveScroll: true, preserveState: false },
+        );
+    }
+
     return (
         <AppLayout>
             <Head title="Dashboard" />
 
-            <div className="rounded-2xl bg-slate-900 p-6 text-white">
+            <div className="rounded-2xl bg-panel p-6 text-panel-foreground shadow-card ring-1 ring-black/5 dark:ring-white/10">
                 <div className="flex flex-wrap items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
                         <Avatar className="h-11 w-11">
-                            <AvatarFallback className="bg-primary text-base font-semibold text-slate-900">
+                            <AvatarFallback className="bg-primary text-base font-semibold text-primary-foreground">
                                 {firstName.charAt(0).toUpperCase()}
                             </AvatarFallback>
                         </Avatar>
                         <div>
                             <div className="text-lg font-semibold">Hello {firstName}! 👋</div>
-                            <div className="text-sm text-slate-300">We hope you're having a great day.</div>
+                            <div className="text-sm text-panel-muted-foreground">We hope you're having a great day.</div>
                         </div>
                     </div>
 
                     <div className="flex flex-wrap items-center gap-2">
-                        <button
-                            type="button"
-                            className="flex items-center gap-2 rounded-lg bg-white/10 px-3 py-2 text-sm font-medium text-white hover:bg-white/15"
-                        >
-                            All Classes <ChevronDown className="h-4 w-4" />
-                        </button>
-                        <button
-                            type="button"
-                            className="flex items-center gap-2 rounded-lg bg-white/10 px-3 py-2 text-sm font-medium text-white hover:bg-white/15"
-                        >
-                            <Calendar className="h-4 w-4" /> Last 30 days
-                        </button>
-                        <button
-                            type="button"
-                            className="flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-slate-900 hover:bg-primary/90"
-                        >
-                            <SlidersHorizontal className="h-4 w-4" /> Filter
-                        </button>
+                        <DropdownMenu>
+                            <DropdownMenuTrigger className="flex items-center gap-2 rounded-lg bg-panel-foreground/10 px-3 py-2 text-sm font-medium text-panel-foreground outline-none hover:bg-panel-foreground/15 data-[state=open]:bg-panel-foreground/15">
+                                <Building2 className="h-4 w-4" /> {departmentLabel} <ChevronDown className="h-4 w-4 opacity-70" />
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-56">
+                                <DropdownMenuLabel>Department</DropdownMenuLabel>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuRadioGroup
+                                    value={filters.department === null ? 'all' : String(filters.department)}
+                                    onValueChange={(v) => applyFilters({ department: v === 'all' ? null : Number(v) })}
+                                >
+                                    <DropdownMenuRadioItem value="all">All Departments</DropdownMenuRadioItem>
+                                    {departments.map((d) => (
+                                        <DropdownMenuRadioItem key={d.id} value={String(d.id)}>
+                                            {d.name}
+                                        </DropdownMenuRadioItem>
+                                    ))}
+                                </DropdownMenuRadioGroup>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+
+                        <DropdownMenu>
+                            <DropdownMenuTrigger className="flex items-center gap-2 rounded-lg bg-panel-foreground/10 px-3 py-2 text-sm font-medium text-panel-foreground outline-none hover:bg-panel-foreground/15 data-[state=open]:bg-panel-foreground/15">
+                                <Calendar className="h-4 w-4" /> {rangeLabel} <ChevronDown className="h-4 w-4 opacity-70" />
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-44">
+                                <DropdownMenuLabel>Time range</DropdownMenuLabel>
+                                <DropdownMenuSeparator />
+                                <DropdownMenuRadioGroup
+                                    value={String(filters.range)}
+                                    onValueChange={(v) => applyFilters({ range: Number(v) })}
+                                >
+                                    {RANGE_OPTIONS.map((o) => (
+                                        <DropdownMenuRadioItem key={o.value} value={String(o.value)}>
+                                            {o.label}
+                                        </DropdownMenuRadioItem>
+                                    ))}
+                                </DropdownMenuRadioGroup>
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+
+                        {isFiltered && (
+                            <button
+                                type="button"
+                                onClick={() => applyFilters({ range: 30, department: null })}
+                                className="flex items-center gap-2 rounded-lg bg-primary px-3 py-2 text-sm font-semibold text-primary-foreground hover:bg-primary/90"
+                            >
+                                <RotateCcw className="h-4 w-4" /> Reset
+                            </button>
+                        )}
                     </div>
                 </div>
 

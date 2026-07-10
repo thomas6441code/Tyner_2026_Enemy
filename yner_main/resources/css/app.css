@@ -17,7 +17,7 @@
 
     /* Panel — the dark hero surface (dashboard greeting banner). Deliberately dark in
        both themes; a distinct elevated shade so it separates from the page behind it. */
-    --panel: hsl(222 47% 11%);
+    --panel: hsla(189, 58%, 5%, 0.945);
     --panel-foreground: hsl(210 40% 98%);
     --panel-muted-foreground: hsl(215 20% 72%);
 

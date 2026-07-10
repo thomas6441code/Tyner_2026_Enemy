@@ -53,7 +53,7 @@ export function AppHeader({ onMenuClick }: { onMenuClick: () => void }) {
                 >
                     <Bell className="h-4.5 w-4.5" />
                     {unreadNotifications > 0 && (
-                        <span className="absolute right-1.5 top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold leading-none text-destructive-foreground">
+                        <span className="absolute right-1.5 top-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-semibold leading-none text-destructive-foreground">
                             {unreadNotifications > 9 ? '9+' : unreadNotifications}
                         </span>
                     )}

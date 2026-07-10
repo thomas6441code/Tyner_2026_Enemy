@@ -1,4 +1,4 @@
-import { Head } from '@inertiajs/react';
+import { Head, router } from '@inertiajs/react';
 import {
     Ban,
     Calendar,
@@ -7,9 +7,10 @@ import {
     CircleCheck,
     Clock,
     Download,
+    FileSpreadsheet,
+    FileText,
     type LucideIcon,
     Search,
-    SlidersHorizontal,
     X,
 } from 'lucide-react';
 import { useState } from 'react';
@@ -22,9 +23,25 @@ import { TablePagination } from '@/components/table-pagination';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
 import { usePagination } from '@/hooks/use-pagination';
 import AppLayout from '@/layouts/app-layout';
 import { cn } from '@/lib/utils';
+import { route } from 'ziggy-js';
 
 interface Cell {
     type: 'hours' | 'partial' | 'leave' | 'absent' | 'active' | null;
@@ -60,6 +77,17 @@ interface Stats {
     absent: number;
 }
 
+interface EmployeeOption {
+    id: number;
+    name: string;
+}
+
+interface Filters {
+    from: string;
+    to: string;
+    employee_id: number | null;
+}
+
 interface AttendanceIndexProps {
     weekLabel: string;
     days: Day[];
@@ -67,6 +95,10 @@ interface AttendanceIndexProps {
     stats: Stats;
     statusOptions: StatusOption[];
     canCorrect: boolean;
+    canFilterEmployee: boolean;
+    employees: EmployeeOption[];
+    filters: Filters;
+    exportUrls: { excel: string; pdf: string };
     status?: string;
 }
 
@@ -142,6 +174,8 @@ function StatCard({ icon: Icon, iconClass, label, value, caption }: StatCardProp
     );
 }
 
+const ALL_EMPLOYEES = 'all';
+
 export default function AttendanceIndex({
     weekLabel,
     days,
@@ -149,11 +183,19 @@ export default function AttendanceIndex({
     stats,
     statusOptions,
     canCorrect,
+    canFilterEmployee,
+    employees,
+    filters,
+    exportUrls,
     status,
 }: AttendanceIndexProps) {
-    const [chips, setChips] = useState(['Leave', 'Absent', 'Active']);
     const [query, setQuery] = useState('');
     const [correcting, setCorrecting] = useState<Correcting | null>(null);
+    const [from, setFrom] = useState(filters.from);
+    const [to, setTo] = useState(filters.to);
+    const [employeeId, setEmployeeId] = useState(
+        filters.employee_id ? String(filters.employee_id) : ALL_EMPLOYEES,
+    );
 
     const filtered = rows.filter(
         (row) =>
@@ -166,6 +208,25 @@ export default function AttendanceIndex({
     function handleQueryChange(value: string) {
         setQuery(value);
         reset();
+    }
+
+    function applyFilters(e: React.FormEvent) {
+        e.preventDefault();
+        router.get(
+            route('attendance.index'),
+            {
+                from,
+                to,
+                ...(canFilterEmployee && employeeId !== ALL_EMPLOYEES
+                    ? { employee_id: Number(employeeId) }
+                    : {}),
+            },
+            { preserveScroll: true, preserveState: true },
+        );
+    }
+
+    function resetFilters() {
+        router.get(route('attendance.index'), {}, { preserveScroll: true });
     }
 
     return (
@@ -183,10 +244,29 @@ export default function AttendanceIndex({
                     <h1 className="text-2xl font-bold tracking-tight">Employee Attendance</h1>
                     <p className="text-sm text-muted-foreground">Analyse attendance records of employees</p>
                 </div>
-                <Button>
-                    <Download className="h-4 w-4" /> Download
-                </Button>
+                <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                        <Button className="gap-2">
+                            <Download className="h-4 w-4" /> Download
+                        </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                        <DropdownMenuItem asChild>
+                            <a href={exportUrls.excel}>
+                                <FileSpreadsheet className="mr-2 h-4 w-4 text-emerald-600" /> Excel (.csv)
+                            </a>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                            <a href={exportUrls.pdf}>
+                                <FileText className="mr-2 h-4 w-4 text-rose-600" /> PDF (portrait)
+                            </a>
+                        </DropdownMenuItem>
+                    </DropdownMenuContent>
+                </DropdownMenu>
             </div>
+
+            <Card className="mt-6">
+            </Card>
 
             <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 <StatCard
@@ -220,9 +300,9 @@ export default function AttendanceIndex({
             </div>
 
             <Card className="mt-6">
-                <CardContent className="p-0">
-                    <div className="flex flex-wrap items-center gap-3 border-b border-border p-4">
-                        <div className="relative min-w-0 flex-1">
+                <CardContent className="p-5">
+                     <div className="flex flex-wrap items-center gap-3 border-b border-border p-4">
+                        <div className="relative mt-7 min-w-0 flex-1">
                             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                             <input
                                 value={query}
@@ -231,33 +311,41 @@ export default function AttendanceIndex({
                                 className="h-9 w-full rounded-lg border border-input bg-muted/40 pl-9 pr-3 text-sm outline-none placeholder:text-muted-foreground focus:border-ring focus:bg-background focus:ring-1 focus:ring-ring"
                             />
                         </div>
-                        <Button variant="outline" size="sm" className="gap-2">
-                            <SlidersHorizontal className="h-4 w-4" /> Filter
+
+                        <form onSubmit={applyFilters} className="flex flex-wrap items-end gap-4">
+                        <div className="w-40">
+                            <Label htmlFor="from">From</Label>
+                            <Input
+                                id="from"
+                                type="date"
+                                value={from}
+                                max={to || undefined}
+                                className="mt-1"
+                                onChange={(e) => setFrom(e.target.value)}
+                            />
+                        </div>
+                        <div className="w-40">
+                            <Label htmlFor="to">To</Label>
+                            <Input
+                                id="to"
+                                type="date"
+                                value={to}
+                                min={from || undefined}
+                                className="mt-1"
+                                onChange={(e) => setTo(e.target.value)}
+                            />
+                        </div>
+
+                        <Button type="submit">Apply</Button>
+                        <Button type="button" variant="outline" onClick={resetFilters}>
+                            Reset
                         </Button>
-                        <Button variant="outline" size="sm" className="gap-2 font-normal">
-                            <Calendar className="h-4 w-4" /> {weekLabel}
-                        </Button>
+                        </form>
                     </div>
 
-                    {chips.length > 0 && (
-                        <div className="flex flex-wrap items-center gap-2 px-4 pt-4">
-                            {chips.map((chip) => (
-                                <span
-                                    key={chip}
-                                    className="inline-flex items-center gap-1.5 rounded-md bg-muted px-2.5 py-1 text-xs font-medium text-foreground/80"
-                                >
-                                    {chip}
-                                    <button
-                                        type="button"
-                                        onClick={() => setChips((c) => c.filter((x) => x !== chip))}
-                                        className="text-muted-foreground hover:text-foreground"
-                                    >
-                                        <X className="h-3 w-3" />
-                                    </button>
-                                </span>
-                            ))}
-                        </div>
-                    )}
+                </CardContent>
+                <CardContent className="p-0">
+
 
                     <div className="overflow-x-auto p-2">
                         <table className="w-full min-w-[900px] border-separate border-spacing-0 text-sm">
@@ -265,7 +353,7 @@ export default function AttendanceIndex({
                                 <tr className="text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
                                     <th className="sticky left-0 z-10 bg-card px-3 py-3">Employee</th>
                                     {days.map((day) => (
-                                        <th key={day.name} className="px-3 py-3 font-semibold">
+                                        <th key={day.iso} className="px-3 py-3 font-semibold">
                                             {day.name}
                                         </th>
                                     ))}

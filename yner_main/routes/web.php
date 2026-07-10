@@ -24,9 +24,13 @@ Route::get('/dashboard', [DashboardController::class, 'index'])
     ->middleware(['auth', 'verified'])
     ->name('dashboard');
 
-Route::get('/attendance', [AttendanceController::class, 'index'])
-    ->middleware(['auth', 'verified'])
-    ->name('attendance.index');
+Route::middleware(['auth', 'verified'])->group(function () {
+    Route::get('/attendance', [AttendanceController::class, 'index'])->name('attendance.index');
+    Route::get('/attendance/export/excel', [AttendanceController::class, 'exportExcel'])
+        ->name('attendance.export.excel');
+    Route::get('/attendance/export/pdf', [AttendanceController::class, 'exportPdf'])
+        ->name('attendance.export.pdf');
+});
 
 Route::get('/ai-insights', [AiInsightController::class, 'index'])
     ->middleware(['auth', 'verified'])

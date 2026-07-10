@@ -6,12 +6,15 @@ use App\Enums\AttendanceStatus;
 use App\Models\AttendanceRecord;
 use App\Models\AuditLog;
 use App\Models\Employee;
+use App\Models\User;
+use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Inertia\Inertia;
 use Inertia\Response;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class AttendanceController extends Controller
 {
@@ -20,6 +23,12 @@ class AttendanceController extends Controller
      * computed `attendance_records`. Admin/HR see every active employee; an Employee
      * sees only their own linked record.
      */
+    /**
+     * Longest date range (in days) the grid/exports will render — guards against
+     * unbounded queries and an unusably wide grid.
+     */
+    private const MAX_RANGE_DAYS = 92;
+
     public function index(Request $request): Response
     {
         $this->authorize('viewAny', AttendanceRecord::class);
@@ -27,27 +36,20 @@ class AttendanceController extends Controller
         $user = $request->user();
         $isManager = $user->can('update', new AttendanceRecord);
 
-        $weekStart = Carbon::now()->startOfWeek(Carbon::SUNDAY);
-        $weekEnd = $weekStart->copy()->addDays(6);
+        [$from, $to, $employee] = $this->resolveFilters($request, $user, $isManager);
         $today = Carbon::today()->toDateString();
 
-        $days = collect(range(0, 6))->map(fn (int $offset) => [
-            'name' => $weekStart->copy()->addDays($offset)->format('l'),
-            'date' => (int) $weekStart->copy()->addDays($offset)->format('j'),
-            'iso' => $weekStart->copy()->addDays($offset)->toDateString(),
+        $days = collect(range(0, (int) $from->diffInDays($to)))->map(fn (int $offset) => [
+            'name' => $from->copy()->addDays($offset)->format('D'),
+            'date' => (int) $from->copy()->addDays($offset)->format('j'),
+            'iso' => $from->copy()->addDays($offset)->toDateString(),
         ])->all();
 
-        $employeesQuery = Employee::with('department')->where('status', 'active');
+        $employees = $this->scopedEmployees($employee, $user, $isManager);
 
-        if (! $isManager) {
-            $employeesQuery->where('user_id', $user->id);
-        }
-
-        $employees = $employeesQuery->orderBy('first_name')->get();
-
-        // Records for the week, keyed [employee_id][Y-m-d] for O(1) cell lookup.
+        // Records for the range, keyed [employee_id][Y-m-d] for O(1) cell lookup.
         $records = AttendanceRecord::whereIn('employee_id', $employees->pluck('id'))
-            ->whereBetween('work_date', [$weekStart->toDateString(), $weekEnd->toDateString()])
+            ->whereBetween('work_date', [$from->toDateString(), $to->toDateString()])
             ->get()
             ->groupBy('employee_id')
             ->map(fn (Collection $group) => $group->keyBy(fn (AttendanceRecord $r) => $r->work_date->toDateString()));
@@ -66,17 +68,271 @@ class AttendanceController extends Controller
             ];
         })->values()->all();
 
+        // KPI cards always reflect *today* regardless of the selected range, so fetch
+        // today's records for the scoped employees independently.
+        $todayRecords = AttendanceRecord::whereIn('employee_id', $employees->pluck('id'))
+            ->where('work_date', $today)
+            ->get()
+            ->groupBy('employee_id')
+            ->map(fn (Collection $group) => $group->keyBy(fn (AttendanceRecord $r) => $r->work_date->toDateString()));
+
+        $exportParams = $this->queryParams($from, $to, $employee);
+
         return Inertia::render('attendance/index', [
-            'weekLabel' => $weekStart->format('d. F Y'),
+            'weekLabel' => $from->format('d M').' – '.$to->format('d M Y'),
             'days' => $days,
             'rows' => $rows,
-            'stats' => $this->stats($employees, $records, $today),
+            'stats' => $this->stats($employees, $todayRecords, $today),
             'statusOptions' => collect(AttendanceStatus::cases())
                 ->map(fn (AttendanceStatus $s) => ['value' => $s->value, 'label' => $s->label()])
                 ->all(),
             'canCorrect' => $isManager,
+            'canFilterEmployee' => $isManager,
+            'employees' => $isManager
+                ? Employee::where('status', 'active')
+                    ->orderBy('first_name')->orderBy('last_name')
+                    ->get(['id', 'first_name', 'last_name'])
+                    ->map(fn (Employee $e) => ['id' => $e->id, 'name' => $e->fullName()])
+                    ->all()
+                : [],
+            'filters' => [
+                'from' => $from->toDateString(),
+                'to' => $to->toDateString(),
+                'employee_id' => $employee?->id,
+            ],
+            'exportUrls' => [
+                'excel' => route('attendance.export.excel', $exportParams),
+                'pdf' => route('attendance.export.pdf', $exportParams),
+            ],
             'status' => session('status'),
         ]);
+    }
+
+    /**
+     * Stream the filtered attendance detail as CSV (opens natively in Excel/Sheets).
+     */
+    public function exportExcel(Request $request): StreamedResponse
+    {
+        $this->authorize('viewAny', AttendanceRecord::class);
+
+        $user = $request->user();
+        $isManager = $user->can('update', new AttendanceRecord);
+
+        [$from, $to, $employee] = $this->resolveFilters($request, $user, $isManager);
+        $employees = $this->scopedEmployees($employee, $user, $isManager);
+        $rows = $this->detailRows($employees, $from, $to);
+
+        $filename = $this->exportFilename($employee, $from, $to, 'csv');
+
+        return response()->streamDownload(function () use ($rows) {
+            $handle = fopen('php://output', 'wb');
+
+            fputcsv($handle, [
+                'Employee Code', 'Employee', 'Department', 'Date', 'Status',
+                'First In', 'Last Out', 'Worked Hours', 'Late Minutes', 'Remarks',
+            ]);
+
+            foreach ($rows as $row) {
+                fputcsv($handle, [
+                    $row['employee_code'], $row['name'], $row['department'], $row['date'],
+                    $row['status'], $row['first_in'], $row['last_out'],
+                    $row['worked_hours'], $row['late_minutes'], $row['remarks'],
+                ]);
+            }
+
+            fclose($handle);
+        }, $filename, ['Content-Type' => 'text/csv']);
+    }
+
+    /**
+     * Render the filtered attendance detail as a downloadable PDF (dompdf, A4 portrait).
+     */
+    public function exportPdf(Request $request)
+    {
+        $this->authorize('viewAny', AttendanceRecord::class);
+
+        $user = $request->user();
+        $isManager = $user->can('update', new AttendanceRecord);
+
+        [$from, $to, $employee] = $this->resolveFilters($request, $user, $isManager);
+        $employees = $this->scopedEmployees($employee, $user, $isManager);
+        $rows = $this->detailRows($employees, $from, $to);
+
+        $filename = $this->exportFilename($employee, $from, $to, 'pdf');
+
+        return Pdf::loadView('attendance.detail-pdf', [
+            'rows' => $rows,
+            'meta' => [
+                'from_label' => $from->format('d M Y'),
+                'to_label' => $to->format('d M Y'),
+                'scope' => $employee
+                    ? $employee->fullName().' ('.$employee->employee_code.')'
+                    : 'All active employees',
+                'employees' => $employees->count(),
+                'records' => count($rows),
+                'generated_at' => Carbon::now()->format('d M Y H:i'),
+            ],
+            'totals' => $this->detailTotals($rows),
+        ])->setPaper('a4', 'portrait')->download($filename);
+    }
+
+    /**
+     * Resolve and validate the shared date-range + employee filters. Employees may only
+     * ever see their own linked record, whatever they pass.
+     *
+     * @return array{0: Carbon, 1: Carbon, 2: ?Employee}
+     */
+    private function resolveFilters(Request $request, User $user, bool $isManager): array
+    {
+        $validated = $request->validate([
+            'from' => ['nullable', 'date'],
+            'to' => ['nullable', 'date'],
+            'employee_id' => ['nullable', 'integer', 'exists:employees,id'],
+        ]);
+
+        $from = ! empty($validated['from'])
+            ? Carbon::parse($validated['from'])->startOfDay()
+            : Carbon::now()->startOfWeek(Carbon::SUNDAY);
+        $to = ! empty($validated['to'])
+            ? Carbon::parse($validated['to'])->startOfDay()
+            : $from->copy()->addDays(6);
+
+        // Guard against inverted or unbounded ranges.
+        if ($to->lt($from)) {
+            [$from, $to] = [$to, $from];
+        }
+        if ($from->diffInDays($to) > self::MAX_RANGE_DAYS) {
+            $to = $from->copy()->addDays(self::MAX_RANGE_DAYS);
+        }
+
+        if (! $isManager) {
+            // Force the scope to the employee's own record; ignore any employee_id passed.
+            return [$from, $to, Employee::where('user_id', $user->id)->first()];
+        }
+
+        $employee = ! empty($validated['employee_id'])
+            ? Employee::find($validated['employee_id'])
+            : null;
+
+        return [$from, $to, $employee];
+    }
+
+    /**
+     * Active employees in scope for the current user + optional employee filter.
+     *
+     * @return Collection<int, Employee>
+     */
+    private function scopedEmployees(?Employee $employee, User $user, bool $isManager): Collection
+    {
+        $query = Employee::with('department:id,name')->where('status', 'active');
+
+        if (! $isManager) {
+            $query->where('user_id', $user->id);
+        } elseif ($employee) {
+            $query->where('id', $employee->id);
+        }
+
+        return $query->orderBy('first_name')->orderBy('last_name')->get();
+    }
+
+    /**
+     * One row per attendance record in the range, ready for CSV/PDF export.
+     *
+     * @param  Collection<int, Employee>  $employees
+     * @return list<array<string, mixed>>
+     */
+    private function detailRows(Collection $employees, Carbon $from, Carbon $to): array
+    {
+        if ($employees->isEmpty()) {
+            return [];
+        }
+
+        $byId = $employees->keyBy('id');
+
+        return AttendanceRecord::whereIn('employee_id', $employees->pluck('id'))
+            ->whereBetween('work_date', [$from->toDateString(), $to->toDateString()])
+            ->orderBy('employee_id')
+            ->orderBy('work_date')
+            ->get()
+            ->map(function (AttendanceRecord $record) use ($byId) {
+                $employee = $byId->get($record->employee_id);
+
+                return [
+                    'employee_code' => $employee?->employee_code ?? '',
+                    'name' => $employee?->fullName() ?? '',
+                    'department' => $employee?->department?->name ?? '—',
+                    'date' => $record->work_date->format('D, d M Y'),
+                    'status' => $record->status->label(),
+                    'first_in' => $record->first_in?->format('H:i') ?? '—',
+                    'last_out' => $record->last_out?->format('H:i') ?? '—',
+                    'worked_hours' => $record->worked_minutes !== null
+                        ? round($record->worked_minutes / 60, 1)
+                        : '—',
+                    'late_minutes' => (int) $record->late_minutes,
+                    'remarks' => $record->remarks ?? '',
+                ];
+            })
+            ->all();
+    }
+
+    /**
+     * Roll-up counters for the PDF header.
+     *
+     * @param  list<array<string, mixed>>  $rows
+     * @return array<string, int|float>
+     */
+    private function detailTotals(array $rows): array
+    {
+        $tally = fn (string $label) => count(array_filter($rows, fn ($r) => $r['status'] === $label));
+        $workedHours = array_sum(array_map(
+            fn ($r) => is_numeric($r['worked_hours']) ? $r['worked_hours'] : 0,
+            $rows,
+        ));
+
+        return [
+            'present' => $tally(AttendanceStatus::Present->label()),
+            'late' => $tally(AttendanceStatus::Late->label()),
+            'absent' => $tally(AttendanceStatus::Absent->label()),
+            'leave' => count(array_filter(
+                $rows,
+                fn ($r) => in_array($r['status'], $this->leaveLabels(), true),
+            )),
+            'worked_hours' => round($workedHours, 1),
+            'late_minutes' => array_sum(array_column($rows, 'late_minutes')),
+        ];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function leaveLabels(): array
+    {
+        return collect(AttendanceStatus::cases())
+            ->filter(fn (AttendanceStatus $s) => $s->isLeave())
+            ->map(fn (AttendanceStatus $s) => $s->label())
+            ->values()
+            ->all();
+    }
+
+    private function exportFilename(?Employee $employee, Carbon $from, Carbon $to, string $extension): string
+    {
+        $who = $employee
+            ? preg_replace('/[^A-Za-z0-9]+/', '-', strtolower($employee->fullName()))
+            : 'all-employees';
+
+        return "attendance-{$who}-{$from->toDateString()}_to_{$to->toDateString()}.{$extension}";
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function queryParams(Carbon $from, Carbon $to, ?Employee $employee): array
+    {
+        return array_filter([
+            'from' => $from->toDateString(),
+            'to' => $to->toDateString(),
+            'employee_id' => $employee?->id,
+        ], fn ($value) => $value !== null);
     }
 
     /**

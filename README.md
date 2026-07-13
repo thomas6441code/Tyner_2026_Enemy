@@ -103,4 +103,4 @@ cd bio-service && pytest
 | 10 | Reporting & dashboards | ✅ Done |
 | 11 | Testing & QA | ✅ Done |
 | 12 | Documentation | ✅ Done |
-| 13 | Cloud VPS deployment | ⬜ |
+| 13 | Cloud VPS deployment | ✅ Done |

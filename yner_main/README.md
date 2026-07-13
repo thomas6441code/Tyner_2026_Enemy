@@ -43,7 +43,7 @@ Seeded logins (password `password`): `admin@eapms.test` (Admin), `hr@eapms.test`
 | Phase | Description | Status |
 | ----- | ----------- | ------ |
 | 0  | Project setup & foundations (3-service skeleton)            | ✅ Complete |
-| 1  | Requirements & system design (diagrams, spec)              | ⬜ Not started (diagrams backfilled in Phase 12) |
+| 1  | Requirements & system design (diagrams, spec)              | ✅ Complete |
 | 2  | Authentication, RBAC & core domain                         | ✅ Complete |
 | 3  | Biometric device integration (device-agnostic adapter)     | ✅ Complete |
 | 4  | Attendance computation engine                              | ✅ Complete |
@@ -55,7 +55,7 @@ Seeded logins (password `password`): `admin@eapms.test` (Admin), `hr@eapms.test`
 | 10 | Reporting, dashboards & decision support                   | ✅ Complete |
 | 11 | Testing & QA                                               | ✅ Complete |
 | 12 | Documentation                                              | ✅ Complete |
-| 13 | Deployment (Cloud VPS) & hardening                         | ⬜ Pending |
+| 13 | Deployment (Cloud VPS) & hardening                         | ✅ Complete |
 
 See [`development_plan.md`](../development_plan.md) for the full plan and per-phase detail,
 and [`prompt/`](../prompt/) for the executed implementation plans.

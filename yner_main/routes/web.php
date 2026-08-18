@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AccountInvitationController;
 use App\Http\Controllers\AiInsightController;
 use App\Http\Controllers\AiSettingController;
 use App\Http\Controllers\AttendanceController;
@@ -11,6 +12,7 @@ use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PermissionRequestController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\RegistrationRequestReviewController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ReportSummaryController;
 use App\Http\Controllers\WorkScheduleController;
@@ -72,6 +74,21 @@ Route::middleware('auth')->group(function () {
         ->name('permission-requests.review');
     Route::get('permission-requests/{permissionRequest}/attachment', [PermissionRequestController::class, 'attachment'])
         ->name('permission-requests.attachment');
+
+    // Domain actions rather than CRUD, following the permission-requests/{x}/review shape.
+    Route::get('registration-requests', [RegistrationRequestReviewController::class, 'index'])
+        ->name('registration-requests.index');
+    Route::put('registration-requests/{registrationRequest}/approve', [RegistrationRequestReviewController::class, 'approve'])
+        ->name('registration-requests.approve');
+    Route::put('registration-requests/{registrationRequest}/reject', [RegistrationRequestReviewController::class, 'reject'])
+        ->name('registration-requests.reject');
+
+    Route::get('account-invitations', [AccountInvitationController::class, 'index'])
+        ->name('account-invitations.index');
+    Route::post('account-invitations/{accountInvitation}/resend', [AccountInvitationController::class, 'resend'])
+        ->name('account-invitations.resend');
+    Route::delete('account-invitations/{accountInvitation}', [AccountInvitationController::class, 'destroy'])
+        ->name('account-invitations.destroy');
 
     Route::resource('biometric-devices', BiometricDeviceController::class)->except(['show', 'create', 'edit']);
     Route::post('biometric-devices/{biometricDevice}/test-connection', [BiometricDeviceController::class, 'testConnection'])

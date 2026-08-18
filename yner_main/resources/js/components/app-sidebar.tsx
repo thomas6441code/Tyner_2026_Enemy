@@ -10,10 +10,12 @@ import {
     Fingerprint,
     LayoutDashboard,
     type LucideIcon,
+    MailCheck,
     Moon,
     ScanLine,
     Settings,
     Sun,
+    UserPlus,
     Users,
     X,
 } from 'lucide-react';
@@ -118,6 +120,25 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                     active: route().current('departments.*'),
                     show: can.viewDepartments,
                 }
+            ],
+        },
+        {
+            label: 'Access',
+            items: [
+                {
+                    href: route('registration-requests.index'),
+                    label: 'Registration Requests',
+                    icon: UserPlus,
+                    active: route().current('registration-requests.*'),
+                    show: can.viewRegistrationRequests,
+                },
+                {
+                    href: route('account-invitations.index'),
+                    label: 'Invitations',
+                    icon: MailCheck,
+                    active: route().current('account-invitations.*'),
+                    show: can.viewAccountInvitations,
+                },
             ],
         },
         {

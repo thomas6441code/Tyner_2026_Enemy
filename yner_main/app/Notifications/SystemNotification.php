@@ -3,6 +3,7 @@
 namespace App\Notifications;
 
 use Illuminate\Bus\Queueable;
+use Illuminate\Notifications\AnonymousNotifiable;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 
@@ -21,8 +22,7 @@ class SystemNotification extends Notification
         private readonly ?string $actionLabel = null,
         private readonly array $meta = [],
         private readonly ?string $mailSubject = null,
-    ) {
-    }
+    ) {}
 
     public static function permissionRequestSubmitted(string $employeeName, int $requestId, string $actionUrl): self
     {
@@ -107,11 +107,78 @@ class SystemNotification extends Notification
         );
     }
 
+    public static function registrationRequestSubmitted(string $applicantName, int $requestId, string $actionUrl): self
+    {
+        return new self(
+            type: 'registration-request.submitted',
+            title: 'New registration request',
+            message: "{$applicantName} submitted registration request #{$requestId}.",
+            actionUrl: $actionUrl,
+            actionLabel: 'Review request',
+            meta: [
+                'applicant_name' => $applicantName,
+                'request_id' => $requestId,
+            ],
+            mailSubject: 'New registration request submitted',
+        );
+    }
+
+    public static function registrationRequestApproved(string $applicantName, string $activationUrl): self
+    {
+        return new self(
+            type: 'registration-request.approved',
+            title: 'Your registration was approved',
+            message: "{$applicantName}, your EAPMS registration has been approved. Use the link below to create your account — it can only be used once.",
+            actionUrl: $activationUrl,
+            actionLabel: 'Create EAPMS account',
+            meta: [
+                'applicant_name' => $applicantName,
+            ],
+            mailSubject: 'Your EAPMS registration was approved',
+        );
+    }
+
+    public static function registrationRequestRejected(string $applicantName, ?string $reason): self
+    {
+        return new self(
+            type: 'registration-request.rejected',
+            title: 'Your registration was not approved',
+            message: trim("{$applicantName}, your EAPMS registration request was not approved. ".($reason ?? '')),
+            meta: [
+                'applicant_name' => $applicantName,
+                'reason' => $reason,
+            ],
+            mailSubject: 'Your EAPMS registration request',
+        );
+    }
+
+    public static function accountActivated(string $employeeName, string $actionUrl): self
+    {
+        return new self(
+            type: 'account.activated',
+            title: 'Account activated',
+            message: "{$employeeName} completed account activation and can now sign in.",
+            actionUrl: $actionUrl,
+            actionLabel: 'View employees',
+            meta: [
+                'employee_name' => $employeeName,
+            ],
+            mailSubject: 'EAPMS account activated',
+        );
+    }
+
     /**
      * @return array<int, string>
      */
     public function via(object $notifiable): array
     {
+        // Applicant notifications are sent on-demand (Notification::route('mail', ...))
+        // because no User row exists until activation. An AnonymousNotifiable has nowhere
+        // to store a database notification, so mail is the only viable channel.
+        if ($notifiable instanceof AnonymousNotifiable) {
+            return ['mail'];
+        }
+
         return ['database', 'mail'];
     }
 

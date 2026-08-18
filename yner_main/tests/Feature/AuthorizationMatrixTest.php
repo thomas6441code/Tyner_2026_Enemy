@@ -53,6 +53,9 @@ class AuthorizationMatrixTest extends TestCase
             'ai-insights' => ['/ai-insights', [$admin, $hr]],
             'reports' => ['/reports', [$admin, $hr]],
             'report-summaries' => ['/report-summaries', [$admin, $hr]],
+            // The access queues hold personal details of people who are not employees yet.
+            'registration-requests' => ['/registration-requests', [$admin, $hr]],
+            'account-invitations' => ['/account-invitations', [$admin, $hr]],
             'biometric-devices' => ['/biometric-devices', [$admin]],
             'device-enrollments' => ['/device-enrollments', [$admin]],
             // Every authenticated role may see their attendance view.

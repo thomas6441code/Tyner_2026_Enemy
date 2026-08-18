@@ -20,6 +20,8 @@ export interface SharedData {
         viewReportSummaries: boolean;
         viewReports: boolean;
         manageAiSettings: boolean;
+        viewRegistrationRequests: boolean;
+        viewAccountInvitations: boolean;
     };
     flash: {
         status: string | null;

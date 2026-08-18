@@ -2,12 +2,14 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\AccountInvitation;
 use App\Models\AiAnomaly;
 use App\Models\BiometricDevice;
 use App\Models\Department;
 use App\Models\DeviceEnrollment;
 use App\Models\Employee;
 use App\Models\PermissionRequest;
+use App\Models\RegistrationRequest;
 use App\Models\ReportSummary;
 use App\Models\WorkSchedule;
 use Illuminate\Http\Request;
@@ -66,6 +68,8 @@ class HandleInertiaRequests extends Middleware
                 'viewReportSummaries' => $user?->can('viewAny', ReportSummary::class) ?? false,
                 'viewReports' => $user?->can('viewReports') ?? false,
                 'manageAiSettings' => $user?->can('manageAiSettings') ?? false,
+                'viewRegistrationRequests' => $user?->can('viewAny', RegistrationRequest::class) ?? false,
+                'viewAccountInvitations' => $user?->can('viewAny', AccountInvitation::class) ?? false,
             ],
             'unreadNotifications' => $user?->unreadNotifications()->count() ?? 0,
             'flash' => [

@@ -103,6 +103,21 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Account Invitations
+    |--------------------------------------------------------------------------
+    |
+    | Lifetime, in minutes, of the single-use activation token issued when an admin
+    | approves a registration request. Defaults to 72 hours — long enough to survive a
+    | weekend, short enough that a leaked link goes stale on its own.
+    |
+    */
+
+    'invitations' => [
+        'expire' => env('AUTH_INVITATION_EXPIRE', 4320),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Password Confirmation Timeout
     |--------------------------------------------------------------------------
     |

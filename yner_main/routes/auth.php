@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Auth\AccountActivationController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\ConfirmablePasswordController;
 use App\Http\Controllers\Auth\EmailVerificationNotificationController;
@@ -7,15 +8,30 @@ use App\Http\Controllers\Auth\EmailVerificationPromptController;
 use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
-use App\Http\Controllers\Auth\RegisteredUserController;
+use App\Http\Controllers\Auth\RegistrationRequestController;
 use App\Http\Controllers\Auth\VerifyEmailController;
 use Illuminate\Support\Facades\Route;
 
 Route::middleware('guest')->group(function () {
-    Route::get('register', [RegisteredUserController::class, 'create'])
+    // `/register` no longer creates an account. It files a request for admin review; the
+    // account is created only by redeeming the invitation issued on approval. The URL and
+    // route name are unchanged because login.tsx and welcome.tsx resolve route('register').
+    Route::get('register', [RegistrationRequestController::class, 'create'])
         ->name('register');
 
-    Route::post('register', [RegisteredUserController::class, 'store']);
+    Route::post('register', [RegistrationRequestController::class, 'store'])
+        ->middleware('throttle:5,60');
+
+    Route::get('register/submitted', [RegistrationRequestController::class, 'submitted'])
+        ->name('registration-request.submitted');
+
+    Route::get('activate/{uuid}/{token}', [AccountActivationController::class, 'create'])
+        ->middleware('throttle:10,1')
+        ->name('account.activate');
+
+    Route::post('activate/{uuid}/{token}', [AccountActivationController::class, 'store'])
+        ->middleware('throttle:10,1')
+        ->name('account.activate.store');
 
     Route::get('login', [AuthenticatedSessionController::class, 'create'])
         ->name('login');

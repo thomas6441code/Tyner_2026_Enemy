@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Employee extends Model
 {
@@ -60,5 +61,15 @@ class Employee extends Model
     public function permissionRequests(): HasMany
     {
         return $this->hasMany(PermissionRequest::class);
+    }
+
+    public function registrationRequest(): HasOne
+    {
+        return $this->hasOne(RegistrationRequest::class);
+    }
+
+    public function accountInvitations(): HasMany
+    {
+        return $this->hasMany(AccountInvitation::class);
     }
 }

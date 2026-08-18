@@ -43,8 +43,15 @@ On the application resource's **Environment Variables** tab, set:
 | `INTERNAL_API_SECRET` | A long random string (e.g. `openssl rand -hex 32`) — shared secret between `yner_main` and the two Python services |
 | `LLM_API_KEY` | Only needed as a fallback for standalone `ai-service` use; normally the Admin sets provider/model/key at runtime from the AI Settings page (`/settings/ai`) once the app is deployed |
 
-`LLM_PROVIDER`, `LLM_BASE_URL`, `LLM_MODEL`, `POLL_INTERVAL_SECONDS` have
-sane defaults baked into `docker-compose.coolify.yml` — override only if needed.
+| `WEBAUTHN_RP_ID` | The public domain **without scheme or port** — e.g. `tyner.skyportcargo.co.tz`. Defaults to that value in `docker-compose.coolify.yml`; set it only if the domain changes. Passkeys are cryptographically bound to this, so changing it invalidates every registered device and employees must re-register their phones. |
+
+`LLM_PROVIDER`, `LLM_BASE_URL`, `LLM_MODEL`, `POLL_INTERVAL_SECONDS`,
+`WEBAUTHN_RP_NAME`, `WEBAUTHN_REQUIRE` have sane defaults baked into
+`docker-compose.coolify.yml` — override only if needed.
+
+> Mobile check-in needs HTTPS: `navigator.credentials` does not exist on a plain-HTTP origin.
+> Coolify's Let's Encrypt certificate (step 4) is what makes the channel work at all, and
+> `WEBAUTHN_RP_ID` must match the domain on that certificate exactly.
 
 ## 4. Expose yner_main publicly
 

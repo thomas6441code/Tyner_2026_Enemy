@@ -1,4 +1,4 @@
-import { Head, usePage } from '@inertiajs/react';
+import { Head, Link, usePage } from '@inertiajs/react';
 import {
     CalendarClock,
     CheckCircle2,
@@ -7,6 +7,7 @@ import {
     Hourglass,
     LogIn,
     LogOut,
+    MapPinned,
     type LucideIcon,
     Umbrella,
     UserX,
@@ -15,9 +16,11 @@ import {
 import { BarChart } from '@/components/charts/bar-chart';
 import { ChartCard, DetailTile, Donut, type DonutSegment, StatTile, type Tone } from '@/components/dashboard/widgets';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import AppLayout from '@/layouts/app-layout';
+import { route } from 'ziggy-js';
 import type { SharedData } from '@/types';
 
 interface EmployeeDashboardProps {
@@ -64,7 +67,7 @@ function TodayTile({ today }: { today: { status: string; label: string } }) {
 }
 
 export default function EmployeeDashboard({ employee, monthLabel, summary, today, week, exceptions, requests }: EmployeeDashboardProps) {
-    const { auth } = usePage<SharedData>().props;
+    const { auth, can } = usePage<SharedData>().props;
     const firstName = auth.user?.name.split(' ')[0] ?? 'there';
 
     if (!employee || !summary || !today || !week || !exceptions || !requests) {
@@ -112,6 +115,29 @@ export default function EmployeeDashboard({ employee, monthLabel, summary, today
                     </Badge>
                 </div>
             </div>
+
+            {/* Mobile check-in shortcut. Only for employees whose account can actually punch —
+                `can.checkIn` is false without a linked active employee record. */}
+            {can.checkIn && (
+                <Card className="mt-4">
+                    <CardContent className="flex flex-wrap items-center justify-between gap-4 p-5">
+                        <div className="flex items-center gap-3">
+                            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                                <MapPinned className="h-5 w-5" />
+                            </span>
+                            <div>
+                                <div className="font-semibold">Away from a terminal?</div>
+                                <div className="text-sm text-muted-foreground">
+                                    Check in from your registered phone, inside your work location.
+                                </div>
+                            </div>
+                        </div>
+                        <Button asChild>
+                            <Link href={route('check-in.show')}>Open check-in</Link>
+                        </Button>
+                    </CardContent>
+                </Card>
+            )}
 
             {/* Statistics donut + Attendance tiles */}
             <div className="mt-6 grid gap-4 lg:grid-cols-3">

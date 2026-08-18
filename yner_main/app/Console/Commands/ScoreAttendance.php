@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Enums\RoleName;
 use App\Models\AiAnomaly;
 use App\Models\AiPrediction;
 use App\Models\AttendanceRecord;
@@ -167,7 +168,7 @@ class ScoreAttendance extends Command
             return;
         }
 
-        $recipients = User::role([\App\Enums\RoleName::Admin->value, \App\Enums\RoleName::HrOfficer->value])->get();
+        $recipients = User::role([RoleName::Admin->value, RoleName::HrOfficer->value])->get();
 
         if ($recipients->isEmpty()) {
             return;

@@ -17,6 +17,13 @@ interface Department {
     name: string;
     description: string | null;
     employees_count: number;
+    work_location_id: number | null;
+    workLocation: { name: string } | null;
+}
+
+interface Option {
+    id: number;
+    name: string;
 }
 
 interface DepartmentsIndexProps {
@@ -24,12 +31,19 @@ interface DepartmentsIndexProps {
         data: Department[];
         links: { url: string | null; label: string; active: boolean }[];
     };
+    workLocations: Option[];
     stats: { departments: number; employees: number; avgPerDepartment: number; empty: number };
     actions: { create: boolean; update: boolean; delete: boolean };
     status?: string;
 }
 
-export default function DepartmentsIndex({ departments, stats, actions, status }: DepartmentsIndexProps) {
+export default function DepartmentsIndex({
+    departments,
+    workLocations,
+    stats,
+    actions,
+    status,
+}: DepartmentsIndexProps) {
     const [dialog, setDialog] = useState<{ record: Department | null } | null>(null);
     const [deleting, setDeleting] = useState<Department | null>(null);
 
@@ -70,13 +84,14 @@ export default function DepartmentsIndex({ departments, stats, actions, status }
                                 <TableHead>Name</TableHead>
                                 <TableHead>Description</TableHead>
                                 <TableHead>Employees</TableHead>
+                                <TableHead>Work Location</TableHead>
                                 <TableHead className="text-right">Actions</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {departments.data.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={4} className="py-10 text-center text-muted-foreground">
+                                    <TableCell colSpan={5} className="py-10 text-center text-muted-foreground">
                                         No departments yet.
                                     </TableCell>
                                 </TableRow>
@@ -88,6 +103,9 @@ export default function DepartmentsIndex({ departments, stats, actions, status }
                                             {department.description}
                                         </TableCell>
                                         <TableCell>{department.employees_count}</TableCell>
+                                        <TableCell className="text-muted-foreground">
+                                            {department.workLocation?.name ?? '—'}
+                                        </TableCell>
                                         <TableCell className="text-right">
                                             {actions.update && (
                                                 <Button
@@ -122,7 +140,13 @@ export default function DepartmentsIndex({ departments, stats, actions, status }
                 <Pagination links={departments.links} />
             </div>
 
-            {dialog && <DepartmentFormDialog record={dialog.record} onClose={() => setDialog(null)} />}
+            {dialog && (
+                <DepartmentFormDialog
+                    record={dialog.record}
+                    workLocations={workLocations}
+                    onClose={() => setDialog(null)}
+                />
+            )}
 
             {deleting && (
                 <ConfirmDialog

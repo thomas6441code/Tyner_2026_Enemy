@@ -9,6 +9,7 @@ use App\Services\BioServiceClient;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -140,7 +141,15 @@ class BiometricDeviceController extends Controller
         return $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'type' => ['required', 'in:stub,zkteco,hikvision'],
-            'serial' => ['required', 'string', 'max:255', 'unique:biometric_devices,serial,'.($biometricDevice?->id)],
+            'serial' => [
+                'required', 'string', 'max:255',
+                'unique:biometric_devices,serial,'.($biometricDevice?->id),
+                // The mobile channel writes this serial on every punch it records. A real
+                // device claiming it would collide with mobile rows on the dedupe index and,
+                // worse, make the enrollment lookup start matching mobile punches — silently
+                // attributing them to whichever employee is enrolled on that device.
+                Rule::notIn([RawAttendanceLog::MOBILE_SERIAL]),
+            ],
             'host' => ['nullable', 'string', 'max:255'],
             'port' => ['nullable', 'integer', 'min:1', 'max:65535'],
             'username' => ['nullable', 'string', 'max:255'],

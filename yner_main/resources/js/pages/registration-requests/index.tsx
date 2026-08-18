@@ -39,7 +39,7 @@ interface Props {
         links: { url: string | null; label: string; active: boolean }[];
     };
     stats: { pending: number; approved: number; rejected: number };
-    formData: { departments: Option[]; workSchedules: Option[] };
+    formData: { departments: Option[]; workSchedules: Option[]; workLocations: Option[] };
     status?: string;
     invitationUrl?: string;
 }
@@ -187,6 +187,7 @@ export default function RegistrationRequestsIndex({ requests, stats, formData, s
                     record={approving}
                     departments={formData.departments}
                     workSchedules={formData.workSchedules}
+                    workLocations={formData.workLocations}
                     onClose={() => setApproving(null)}
                 />
             )}

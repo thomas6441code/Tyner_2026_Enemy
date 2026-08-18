@@ -6,6 +6,7 @@ use App\Enums\RoleName;
 use App\Models\Department;
 use App\Models\Employee;
 use App\Models\User;
+use App\Models\WorkLocation;
 use App\Models\WorkSchedule;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
@@ -19,6 +20,28 @@ class OrgSeeder extends Seeder
     {
         $departments = collect(['Finance', 'Human Resources', 'ICT', 'Registry', 'Academics'])
             ->mapWithKeys(fn (string $name) => [$name => Department::firstOrCreate(['name' => $name])]);
+
+        // Geofence sites come from WorkLocationSeeder, which runs first. Departments carry the
+        // default site and employees inherit it; an employee-level location is only set for the
+        // handful of people who genuinely work elsewhere (see the overrides below). There is
+        // deliberately no global fallback — an employee whose department has no location cannot
+        // check in from their phone at all, which is the correct failure: a global default would
+        // geofence everyone against head office and produce plausible-but-wrong attendance.
+        $locations = WorkLocation::pluck('id', 'name');
+
+        $departmentLocations = [
+            'Finance' => 'IFM Main Campus',
+            'Human Resources' => 'IFM Main Campus',
+            'ICT' => 'IFM Main Campus',
+            'Registry' => 'IFM Main Campus',
+            'Academics' => 'IFM Mwanza Centre',
+        ];
+
+        foreach ($departmentLocations as $department => $location) {
+            // Assigned outside the firstOrCreate above so re-seeding an existing database still
+            // backfills locations onto departments created before this column existed.
+            $departments[$department]->update(['work_location_id' => $locations[$location] ?? null]);
+        }
 
         $workSchedule = WorkSchedule::firstOrCreate(
             ['name' => 'Standard Office Hours'],
@@ -73,6 +96,13 @@ class OrgSeeder extends Seeder
             ['code' => 'EMP-0024', 'first' => 'Godfrey', 'last' => 'Mrema', 'dept' => 'Registry', 'user' => null],
         ];
 
+        // Employees who work away from their department's site. An employee-level location wins
+        // over the department's in GeofenceService::resolveLocationFor().
+        $employeeLocations = [
+            'EMP-0004' => 'Dodoma Liaison Office',
+            'EMP-0012' => 'Dodoma Liaison Office',
+        ];
+
         foreach ($sampleEmployees as $index => $data) {
             Employee::firstOrCreate(
                 ['employee_code' => $data['code']],
@@ -87,6 +117,11 @@ class OrgSeeder extends Seeder
                     'status' => 'active',
                 ]
             );
+        }
+
+        foreach ($employeeLocations as $code => $location) {
+            Employee::where('employee_code', $code)
+                ->update(['work_location_id' => $locations[$location] ?? null]);
         }
     }
 }

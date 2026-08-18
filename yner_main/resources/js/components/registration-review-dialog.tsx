@@ -25,6 +25,7 @@ interface Props {
     record: RegistrationRow;
     departments: Option[];
     workSchedules: Option[];
+    workLocations: Option[];
     onClose: () => void;
 }
 
@@ -33,11 +34,12 @@ interface Props {
  * department, work schedule and hire date. The attendance engine depends on all of them,
  * which is why the Employee record is created here rather than at activation.
  */
-export function RegistrationApproveDialog({ record, departments, workSchedules, onClose }: Props) {
+export function RegistrationApproveDialog({ record, departments, workSchedules, workLocations, onClose }: Props) {
     const { data, setData, put, processing, errors } = useForm({
         employee_code: '',
         department_id: '',
         work_schedule_id: '',
+        work_location_id: '',
         hire_date: new Date().toISOString().slice(0, 10),
     });
 
@@ -108,6 +110,24 @@ export function RegistrationApproveDialog({ record, departments, workSchedules, 
                                 ))}
                             </select>
                             <InputError message={errors.work_schedule_id} className="mt-2" />
+                        </div>
+
+                        <div>
+                            <Label htmlFor="work_location_id">Work location</Label>
+                            <select
+                                id="work_location_id"
+                                value={data.work_location_id}
+                                onChange={(e) => setData('work_location_id', e.target.value)}
+                                className="mt-1 flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"
+                            >
+                                <option value="">Inherit from department</option>
+                                {workLocations.map((l) => (
+                                    <option key={l.id} value={l.id}>
+                                        {l.name}
+                                    </option>
+                                ))}
+                            </select>
+                            <InputError message={errors.work_location_id} className="mt-2" />
                         </div>
 
                         <div>

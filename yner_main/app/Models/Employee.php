@@ -13,6 +13,7 @@ class Employee extends Model
         'user_id',
         'department_id',
         'work_schedule_id',
+        'work_location_id',
         'employee_code',
         'first_name',
         'last_name',
@@ -41,6 +42,15 @@ class Employee extends Model
     public function workSchedule(): BelongsTo
     {
         return $this->belongsTo(WorkSchedule::class);
+    }
+
+    /**
+     * The employee's own geofence site, if one is set. May be null — GeofenceService then
+     * falls back to the department's location before refusing.
+     */
+    public function workLocation(): BelongsTo
+    {
+        return $this->belongsTo(WorkLocation::class);
     }
 
     public function fullName(): string

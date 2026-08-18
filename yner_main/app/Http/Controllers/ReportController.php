@@ -175,11 +175,11 @@ class ReportController extends Controller
 
         $highRisk = AiPrediction::with('employee:id,first_name,last_name')
             ->where('risk_level', 'high')
-            ->when($employeeIds !== null, fn($q) => $q->whereIn('employee_id', $employeeIds))
+            ->when($employeeIds !== null, fn ($q) => $q->whereIn('employee_id', $employeeIds))
             ->orderByDesc('risk_score')
             ->limit(5)
             ->get()
-            ->map(fn(AiPrediction $p) => [
+            ->map(fn (AiPrediction $p) => [
                 'employee' => $p->employee?->fullName() ?? "#{$p->employee_id}",
                 'risk_score' => round($p->risk_score, 3),
             ])
@@ -207,6 +207,6 @@ class ReportController extends Controller
             'from' => $from->toDateString(),
             'to' => $to->toDateString(),
             'department_id' => $department?->id,
-        ], fn($value) => $value !== null);
+        ], fn ($value) => $value !== null);
     }
 }

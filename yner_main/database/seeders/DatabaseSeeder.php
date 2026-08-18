@@ -13,6 +13,8 @@ class DatabaseSeeder extends Seeder
     {
         $this->call([
             RoleSeeder::class,
+            // Before OrgSeeder: it assigns these sites to departments and employees.
+            WorkLocationSeeder::class,
             OrgSeeder::class,
             AttendanceSeeder::class,
             PermissionSeeder::class,

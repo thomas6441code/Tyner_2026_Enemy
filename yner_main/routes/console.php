@@ -16,3 +16,8 @@ Schedule::command('ai:score-attendance')->dailyAt('02:00');
 
 // Remind employees to sign in if they have no attendance record yet.
 Schedule::command('attendance:remind-sign-in')->dailyAt('08:15');
+
+// Sweep away activation links that expired or were revoked without ever being redeemed.
+// Weekly is plenty — this is housekeeping, not a security control (the tokens are already
+// unusable; single-use enforcement lives in AccountActivationController's locked transaction).
+Schedule::command('invitations:prune')->weeklyOn(1, '03:00');

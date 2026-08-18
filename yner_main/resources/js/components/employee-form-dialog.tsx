@@ -27,6 +27,7 @@ export interface EmployeeRecord {
     status: string;
     department_id: number | null;
     work_schedule_id: number | null;
+    work_location_id: number | null;
     user_id: number | null;
 }
 
@@ -34,6 +35,7 @@ interface EmployeeFormDialogProps {
     record: EmployeeRecord | null;
     departments: Option[];
     workSchedules: Option[];
+    workLocations: Option[];
     unlinkedUsers: UserOption[];
     onClose: () => void;
 }
@@ -42,6 +44,7 @@ export function EmployeeFormDialog({
     record,
     departments,
     workSchedules,
+    workLocations,
     unlinkedUsers,
     onClose,
 }: EmployeeFormDialogProps) {
@@ -55,6 +58,7 @@ export function EmployeeFormDialog({
         status: record?.status ?? 'active',
         department_id: record?.department_id ? String(record.department_id) : '',
         work_schedule_id: record?.work_schedule_id ? String(record.work_schedule_id) : '',
+        work_location_id: record?.work_location_id ? String(record.work_location_id) : '',
         user_id: record?.user_id ? String(record.user_id) : '',
     });
 
@@ -81,6 +85,7 @@ export function EmployeeFormDialog({
                         errors={errors}
                         departments={departments}
                         workSchedules={workSchedules}
+                        workLocations={workLocations}
                         unlinkedUsers={unlinkedUsers}
                     />
                     <DialogFooter className="gap-2">

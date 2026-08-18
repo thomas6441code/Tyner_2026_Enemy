@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Department;
 use App\Models\Employee;
 use App\Models\User;
+use App\Models\WorkLocation;
 use App\Models\WorkSchedule;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -20,7 +21,7 @@ class EmployeeController extends Controller
     {
         $this->authorize('viewAny', Employee::class);
 
-        $employees = Employee::with(['department', 'workSchedule', 'user'])
+        $employees = Employee::with(['department', 'workSchedule', 'workLocation', 'user'])
             ->orderBy('last_name')
             ->paginate(15)
             ->through(fn (Employee $employee) => [
@@ -34,9 +35,11 @@ class EmployeeController extends Controller
                 'status' => $employee->status,
                 'department_id' => $employee->department_id,
                 'work_schedule_id' => $employee->work_schedule_id,
+                'work_location_id' => $employee->work_location_id,
                 'user_id' => $employee->user_id,
                 'department' => $employee->department ? ['name' => $employee->department->name] : null,
                 'workSchedule' => $employee->workSchedule ? ['name' => $employee->workSchedule->name] : null,
+                'workLocation' => $employee->workLocation ? ['name' => $employee->workLocation->name] : null,
                 'user' => $employee->user ? ['email' => $employee->user->email] : null,
             ]);
 
@@ -110,6 +113,8 @@ class EmployeeController extends Controller
             'status' => ['required', 'in:active,inactive'],
             'department_id' => ['nullable', 'exists:departments,id'],
             'work_schedule_id' => ['nullable', 'exists:work_schedules,id'],
+            // Nullable: an employee with no location of their own inherits their department's.
+            'work_location_id' => ['nullable', 'exists:work_locations,id'],
             'user_id' => [
                 'nullable',
                 'exists:users,id',
@@ -126,6 +131,7 @@ class EmployeeController extends Controller
         return [
             'departments' => Department::orderBy('name')->get(['id', 'name']),
             'workSchedules' => WorkSchedule::orderBy('name')->get(['id', 'name']),
+            'workLocations' => WorkLocation::where('is_active', true)->orderBy('name')->get(['id', 'name']),
             'unlinkedUsers' => User::whereDoesntHave('employee')
                 ->orWhere('id', $employee?->user_id)
                 ->orderBy('name')

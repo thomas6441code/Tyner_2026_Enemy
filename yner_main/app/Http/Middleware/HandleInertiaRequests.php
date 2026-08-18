@@ -8,9 +8,11 @@ use App\Models\BiometricDevice;
 use App\Models\Department;
 use App\Models\DeviceEnrollment;
 use App\Models\Employee;
+use App\Models\MobileCheckIn;
 use App\Models\PermissionRequest;
 use App\Models\RegistrationRequest;
 use App\Models\ReportSummary;
+use App\Models\WorkLocation;
 use App\Models\WorkSchedule;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
@@ -62,6 +64,7 @@ class HandleInertiaRequests extends Middleware
                 'viewEmployees' => $user?->can('viewAny', Employee::class) ?? false,
                 'viewPermissionRequests' => $user?->can('viewAny', PermissionRequest::class) ?? false,
                 'viewWorkSchedules' => $user?->can('viewAny', WorkSchedule::class) ?? false,
+                'viewWorkLocations' => $user?->can('viewAny', WorkLocation::class) ?? false,
                 'viewBiometricDevices' => $user?->can('viewAny', BiometricDevice::class) ?? false,
                 'viewDeviceEnrollments' => $user?->can('viewAny', DeviceEnrollment::class) ?? false,
                 'viewAiInsights' => $user?->can('viewAny', AiAnomaly::class) ?? false,
@@ -70,6 +73,10 @@ class HandleInertiaRequests extends Middleware
                 'manageAiSettings' => $user?->can('manageAiSettings') ?? false,
                 'viewRegistrationRequests' => $user?->can('viewAny', RegistrationRequest::class) ?? false,
                 'viewAccountInvitations' => $user?->can('viewAny', AccountInvitation::class) ?? false,
+                // The audit log (Admin/HR) and the act of checking in (any linked active
+                // employee) are separate capabilities, so the sidebar needs both flags.
+                'viewMobileCheckIns' => $user?->can('viewAny', MobileCheckIn::class) ?? false,
+                'checkIn' => $user?->can('create', MobileCheckIn::class) ?? false,
             ],
             'unreadNotifications' => $user?->unreadNotifications()->count() ?? 0,
             'flash' => [

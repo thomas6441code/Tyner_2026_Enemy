@@ -50,12 +50,16 @@ class AuthorizationMatrixTest extends TestCase
             'departments' => ['/departments', [$admin, $hr]],
             'employees' => ['/employees', [$admin, $hr]],
             'work-schedules' => ['/work-schedules', [$admin, $hr]],
+            'work-locations' => ['/work-locations', [$admin, $hr]],
             'ai-insights' => ['/ai-insights', [$admin, $hr]],
             'reports' => ['/reports', [$admin, $hr]],
             'report-summaries' => ['/report-summaries', [$admin, $hr]],
             // The access queues hold personal details of people who are not employees yet.
             'registration-requests' => ['/registration-requests', [$admin, $hr]],
             'account-invitations' => ['/account-invitations', [$admin, $hr]],
+            // The mobile check-in log carries coordinates and IP addresses for every attempt,
+            // including rejected ones — oversight data, so Admin and HR only.
+            'mobile-check-ins' => ['/mobile-check-ins', [$admin, $hr]],
             'biometric-devices' => ['/biometric-devices', [$admin]],
             'device-enrollments' => ['/device-enrollments', [$admin]],
             // Every authenticated role may see their attendance view.

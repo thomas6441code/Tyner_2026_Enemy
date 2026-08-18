@@ -11,9 +11,12 @@ import {
     LayoutDashboard,
     type LucideIcon,
     MailCheck,
+    MapPin,
+    MapPinned,
     Moon,
     ScanLine,
     Settings,
+    Smartphone,
     Sun,
     UserPlus,
     Users,
@@ -65,6 +68,15 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                     icon: CalendarCheck,
                     active: route().current('attendance.*'),
                     show: true,
+                },
+                {
+                    // The employee's own check-in page — shown to anyone with a linked active
+                    // employee record, regardless of role.
+                    href: route('check-in.show'),
+                    label: 'Check In',
+                    icon: MapPinned,
+                    active: route().current('check-in.*'),
+                    show: can.checkIn,
                 },
                 {
                     href: route('permission-requests.index'),
@@ -119,6 +131,13 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                     icon: Building2,
                     active: route().current('departments.*'),
                     show: can.viewDepartments,
+                },
+                {
+                    href: route('work-locations.index'),
+                    label: 'Work Locations',
+                    icon: MapPin,
+                    active: route().current('work-locations.*'),
+                    show: can.viewWorkLocations,
                 }
             ],
         },
@@ -144,6 +163,22 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
         {
             label: 'Devices',
             items: [
+                {
+                    // Always visible: every user manages their own phone here, unlike the
+                    // biometric terminals below, which are Admin-only infrastructure.
+                    href: route('devices.index'),
+                    label: 'My Devices',
+                    icon: Smartphone,
+                    active: route().current('devices.*'),
+                    show: true,
+                },
+                {
+                    href: route('mobile-check-ins.index'),
+                    label: 'Mobile Check-Ins',
+                    icon: MapPinned,
+                    active: route().current('mobile-check-ins.*'),
+                    show: can.viewMobileCheckIns,
+                },
                 {
                     href: route('biometric-devices.index'),
                     label: 'Biometric Devices',

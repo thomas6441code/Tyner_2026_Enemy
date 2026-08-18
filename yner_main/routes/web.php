@@ -9,12 +9,15 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\DeviceEnrollmentController;
 use App\Http\Controllers\EmployeeController;
+use App\Http\Controllers\MobileCheckInController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PermissionRequestController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\RegistrationRequestReviewController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\ReportSummaryController;
+use App\Http\Controllers\UserDeviceController;
+use App\Http\Controllers\WorkLocationController;
 use App\Http\Controllers\WorkScheduleController;
 use Illuminate\Support\Facades\Route;
 
@@ -67,6 +70,7 @@ Route::middleware('auth')->group(function () {
     // Forms are rendered as modals on each index page, so create/edit GET pages are unused.
     Route::resource('departments', DepartmentController::class)->except(['show', 'create', 'edit']);
     Route::resource('work-schedules', WorkScheduleController::class)->except(['show', 'create', 'edit']);
+    Route::resource('work-locations', WorkLocationController::class)->except(['show', 'create', 'edit']);
     Route::resource('employees', EmployeeController::class)->except(['show', 'create', 'edit']);
 
     Route::resource('permission-requests', PermissionRequestController::class)->except(['show', 'create', 'edit']);
@@ -89,6 +93,32 @@ Route::middleware('auth')->group(function () {
         ->name('account-invitations.resend');
     Route::delete('account-invitations/{accountInvitation}', [AccountInvitationController::class, 'destroy'])
         ->name('account-invitations.destroy');
+
+    // WebAuthn authenticators (phones). Distinct from `biometric-devices`, which are the
+    // wall-mounted terminals — the two channels share nothing but the attendance pipeline.
+    Route::get('devices', [UserDeviceController::class, 'index'])->name('devices.index');
+    Route::delete('devices/{device}', [UserDeviceController::class, 'destroy'])->name('devices.destroy');
+
+    // Registering a new authenticator is a privilege escalation on a hijacked session: it
+    // hands the attacker a durable way to check in as the victim. Re-confirming the password
+    // costs the legitimate owner one prompt and costs an attacker the whole attack.
+    Route::middleware(['password.confirm', 'throttle:10,1'])->group(function () {
+        Route::post('devices/register/options', [UserDeviceController::class, 'registerOptions'])
+            ->name('devices.register.options');
+        Route::post('devices/register/verify', [UserDeviceController::class, 'registerVerify'])
+            ->name('devices.register.verify');
+    });
+
+    // Mobile check-in: the second attendance channel. The write paths are throttled because
+    // each one runs a WebAuthn ceremony and a geofence evaluation, and because a tight retry
+    // loop is what a spoofing attempt looks like.
+    Route::get('check-in', [MobileCheckInController::class, 'show'])->name('check-in.show');
+    Route::middleware('throttle:20,1')->group(function () {
+        Route::post('check-in/assertion-options', [MobileCheckInController::class, 'assertionOptions'])
+            ->name('check-in.assertion-options');
+        Route::post('check-in', [MobileCheckInController::class, 'store'])->name('check-in.store');
+    });
+    Route::get('mobile-check-ins', [MobileCheckInController::class, 'index'])->name('mobile-check-ins.index');
 
     Route::resource('biometric-devices', BiometricDeviceController::class)->except(['show', 'create', 'edit']);
     Route::post('biometric-devices/{biometricDevice}/test-connection', [BiometricDeviceController::class, 'testConnection'])

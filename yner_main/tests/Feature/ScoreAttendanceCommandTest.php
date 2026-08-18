@@ -3,12 +3,12 @@
 namespace Tests\Feature;
 
 use App\Enums\AttendanceStatus;
+use App\Enums\RoleName;
 use App\Models\AiAnomaly;
 use App\Models\AiPrediction;
 use App\Models\AttendanceRecord;
 use App\Models\Employee;
 use App\Models\User;
-use App\Enums\RoleName;
 use App\Models\WorkSchedule;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;

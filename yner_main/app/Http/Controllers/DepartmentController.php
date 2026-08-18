@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Department;
 use App\Models\Employee;
+use App\Models\WorkLocation;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -18,13 +19,25 @@ class DepartmentController extends Controller
     {
         $this->authorize('viewAny', Department::class);
 
-        $departments = Department::withCount('employees')->orderBy('name')->paginate(15);
+        $departments = Department::withCount('employees')
+            ->with('workLocation')
+            ->orderBy('name')
+            ->paginate(15)
+            ->through(fn (Department $department) => [
+                'id' => $department->id,
+                'name' => $department->name,
+                'description' => $department->description,
+                'employees_count' => $department->employees_count,
+                'work_location_id' => $department->work_location_id,
+                'workLocation' => $department->workLocation ? ['name' => $department->workLocation->name] : null,
+            ]);
 
         $totalDepartments = Department::count();
         $assigned = Employee::whereNotNull('department_id')->count();
 
         return Inertia::render('departments/index', [
             'departments' => $departments,
+            'workLocations' => WorkLocation::where('is_active', true)->orderBy('name')->get(['id', 'name']),
             'stats' => [
                 'departments' => $totalDepartments,
                 'employees' => $assigned,
@@ -46,6 +59,7 @@ class DepartmentController extends Controller
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255', 'unique:departments,name'],
             'description' => ['nullable', 'string'],
+            'work_location_id' => ['nullable', 'exists:work_locations,id'],
         ]);
 
         Department::create($validated);
@@ -63,6 +77,7 @@ class DepartmentController extends Controller
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255', 'unique:departments,name,'.$department->id],
             'description' => ['nullable', 'string'],
+            'work_location_id' => ['nullable', 'exists:work_locations,id'],
         ]);
 
         $department->update($validated);

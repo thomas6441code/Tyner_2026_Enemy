@@ -167,6 +167,77 @@ class SystemNotification extends Notification
         );
     }
 
+    public static function deviceRegistered(string $deviceName, string $actionUrl): self
+    {
+        return new self(
+            type: 'device.registered',
+            title: 'New device registered',
+            message: "\"{$deviceName}\" can now be used to check in from a phone. If this was not you, revoke it immediately.",
+            actionUrl: $actionUrl,
+            actionLabel: 'Manage devices',
+            meta: [
+                'device_name' => $deviceName,
+            ],
+            mailSubject: 'A new device was registered on your EAPMS account',
+        );
+    }
+
+    public static function deviceRevoked(string $deviceName, string $actionUrl): self
+    {
+        return new self(
+            type: 'device.revoked',
+            title: 'Device revoked',
+            message: "\"{$deviceName}\" can no longer be used to check in.",
+            actionUrl: $actionUrl,
+            actionLabel: 'Manage devices',
+            meta: [
+                'device_name' => $deviceName,
+            ],
+            mailSubject: 'A device was removed from your EAPMS account',
+        );
+    }
+
+    /**
+     * A sign-counter regression means two authenticators are signing with one key. The device
+     * is revoked automatically; this tells an Admin why.
+     */
+    public static function deviceCloneSuspected(string $ownerName, string $deviceName, string $actionUrl): self
+    {
+        return new self(
+            type: 'device.clone_suspected',
+            title: 'Possible cloned device',
+            message: "\"{$deviceName}\" belonging to {$ownerName} reported a decreasing signature counter and has been revoked automatically. This can indicate a duplicated credential.",
+            actionUrl: $actionUrl,
+            actionLabel: 'Review devices',
+            meta: [
+                'device_name' => $deviceName,
+                'owner_name' => $ownerName,
+            ],
+            mailSubject: 'EAPMS security alert: possible cloned device',
+        );
+    }
+
+    /**
+     * An accepted check-in whose implied travel since the previous punch is not physically
+     * plausible. Deliberately a notification rather than a rejection: the employee keeps their
+     * attendance and a human decides whether the movement was real.
+     */
+    public static function mobileCheckInFlagged(string $employeeName, string $reason, string $actionUrl): self
+    {
+        return new self(
+            type: 'mobile.check_in_flagged',
+            title: 'Unusual mobile check-in',
+            message: "A mobile check-in by {$employeeName} was accepted but flagged. {$reason}",
+            actionUrl: $actionUrl,
+            actionLabel: 'Review check-ins',
+            meta: [
+                'employee_name' => $employeeName,
+                'reason' => $reason,
+            ],
+            mailSubject: 'EAPMS: unusual mobile check-in flagged',
+        );
+    }
+
     /**
      * @return array<int, string>
      */

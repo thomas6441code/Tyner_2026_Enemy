@@ -25,6 +25,12 @@ services:
       INTERNAL_API_SECRET: ${INTERNAL_API_SECRET}
       AI_SERVICE_URL: http://ai-service:8001
       BIO_SERVICE_URL: http://bio-service:8002
+      # WebAuthn relying party — MUST be the public domain the browser sees, with no scheme
+      # and no port. Not the container hostname: passkeys are bound to this value, and a
+      # mismatch surfaces in the browser as an opaque SecurityError.
+      WEBAUTHN_RP_ID: ${WEBAUTHN_RP_ID:-tyner.skyportcargo.co.tz}
+      WEBAUTHN_RP_NAME: ${WEBAUTHN_RP_NAME:-EAPMS}
+      WEBAUTHN_REQUIRE: ${WEBAUTHN_REQUIRE:-true}
     volumes:
       - yner_main_storage:/var/www/html/storage/app
     expose:

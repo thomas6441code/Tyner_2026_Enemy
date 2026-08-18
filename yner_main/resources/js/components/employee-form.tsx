@@ -23,6 +23,7 @@ interface EmployeeFormData {
     status: string;
     department_id: string;
     work_schedule_id: string;
+    work_location_id: string;
     user_id: string;
 }
 
@@ -32,6 +33,7 @@ interface EmployeeFormProps {
     errors: Partial<Record<keyof EmployeeFormData, string>>;
     departments: Option[];
     workSchedules: Option[];
+    workLocations: Option[];
     unlinkedUsers: UserOption[];
 }
 
@@ -43,6 +45,7 @@ export function EmployeeForm({
     errors,
     departments,
     workSchedules,
+    workLocations,
     unlinkedUsers,
 }: EmployeeFormProps) {
     return (
@@ -171,6 +174,31 @@ export function EmployeeForm({
                     </Select>
                     <InputError message={errors.work_schedule_id} className="mt-2" />
                 </div>
+            </div>
+
+            <div>
+                <Label htmlFor="work_location_id">Work Location</Label>
+                <Select
+                    value={data.work_location_id || NONE}
+                    onValueChange={(value) => setData('work_location_id', value === NONE ? '' : value)}
+                >
+                    <SelectTrigger id="work_location_id" className="mt-1">
+                        <SelectValue placeholder="— Inherit from department —" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value={NONE}>— Inherit from department —</SelectItem>
+                        {workLocations.map((workLocation) => (
+                            <SelectItem key={workLocation.id} value={String(workLocation.id)}>
+                                {workLocation.name}
+                            </SelectItem>
+                        ))}
+                    </SelectContent>
+                </Select>
+                <p className="mt-1 text-xs text-muted-foreground">
+                    Where this employee may check in from a phone. With no location here and none on their
+                    department, mobile check-in is refused.
+                </p>
+                <InputError message={errors.work_location_id} className="mt-2" />
             </div>
 
             <div>

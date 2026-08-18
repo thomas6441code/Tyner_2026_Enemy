@@ -8,6 +8,7 @@ use App\Models\AuditLog;
 use App\Models\Department;
 use App\Models\Employee;
 use App\Models\RegistrationRequest;
+use App\Models\WorkLocation;
 use App\Models\WorkSchedule;
 use App\Notifications\SystemNotification;
 use Illuminate\Http\RedirectResponse;
@@ -63,6 +64,7 @@ class RegistrationRequestReviewController extends Controller
             'formData' => [
                 'departments' => Department::orderBy('name')->get(['id', 'name']),
                 'workSchedules' => WorkSchedule::orderBy('name')->get(['id', 'name']),
+                'workLocations' => WorkLocation::where('is_active', true)->orderBy('name')->get(['id', 'name']),
             ],
             'status' => session('status'),
             'invitationUrl' => session('invitationUrl'),
@@ -84,6 +86,9 @@ class RegistrationRequestReviewController extends Controller
             'employee_code' => ['required', 'string', 'max:50', Rule::unique('employees', 'employee_code')],
             'department_id' => ['required', 'integer', 'exists:departments,id'],
             'work_schedule_id' => ['required', 'integer', 'exists:work_schedules,id'],
+            // Optional, unlike the others: an employee with no location of their own inherits
+            // their department's, and only the mobile channel needs one at all.
+            'work_location_id' => ['nullable', 'integer', 'exists:work_locations,id'],
             'hire_date' => ['required', 'date'],
         ]);
 
@@ -91,6 +96,7 @@ class RegistrationRequestReviewController extends Controller
             $employee = Employee::create([
                 'department_id' => $validated['department_id'],
                 'work_schedule_id' => $validated['work_schedule_id'],
+                'work_location_id' => $validated['work_location_id'] ?? null,
                 'employee_code' => $validated['employee_code'],
                 'first_name' => $registrationRequest->first_name,
                 'last_name' => $registrationRequest->last_name,

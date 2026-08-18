@@ -14,6 +14,7 @@ export interface SharedData {
         viewEmployees: boolean;
         viewPermissionRequests: boolean;
         viewWorkSchedules: boolean;
+        viewWorkLocations: boolean;
         viewBiometricDevices: boolean;
         viewDeviceEnrollments: boolean;
         viewAiInsights: boolean;
@@ -22,6 +23,8 @@ export interface SharedData {
         manageAiSettings: boolean;
         viewRegistrationRequests: boolean;
         viewAccountInvitations: boolean;
+        viewMobileCheckIns: boolean;
+        checkIn: boolean;
     };
     flash: {
         status: string | null;

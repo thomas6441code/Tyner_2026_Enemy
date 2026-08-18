@@ -26,9 +26,11 @@ interface Employee {
     status: string;
     department_id: number | null;
     work_schedule_id: number | null;
+    work_location_id: number | null;
     user_id: number | null;
     department: { name: string } | null;
     workSchedule: { name: string } | null;
+    workLocation: { name: string } | null;
     user: { email: string } | null;
 }
 
@@ -50,6 +52,7 @@ interface EmployeesIndexProps {
     };
     departments: Option[];
     workSchedules: Option[];
+    workLocations: Option[];
     unlinkedUsers: UserOption[];
     stats: { total: number; active: number; inactive: number; unlinked: number };
     actions: { create: boolean; update: boolean; delete: boolean };
@@ -65,6 +68,7 @@ export default function EmployeesIndex({
     employees,
     departments,
     workSchedules,
+    workLocations,
     unlinkedUsers,
     stats,
     actions,
@@ -193,6 +197,7 @@ export default function EmployeesIndex({
                     record={dialog.record}
                     departments={departments}
                     workSchedules={workSchedules}
+                    workLocations={workLocations}
                     unlinkedUsers={unlinkedUsers}
                     onClose={() => setDialog(null)}
                 />
@@ -211,6 +216,8 @@ export default function EmployeesIndex({
                             <dd className="col-span-2">{viewing.department?.name ?? '—'}</dd>
                             <dt className="text-muted-foreground">Work Schedule</dt>
                             <dd className="col-span-2">{viewing.workSchedule?.name ?? '—'}</dd>
+                            <dt className="text-muted-foreground">Work Location</dt>
+                            <dd className="col-span-2">{viewing.workLocation?.name ?? 'Inherits department'}</dd>
                             <dt className="text-muted-foreground">Phone</dt>
                             <dd className="col-span-2">{viewing.phone ?? '—'}</dd>
                             <dt className="text-muted-foreground">Hire Date</dt>

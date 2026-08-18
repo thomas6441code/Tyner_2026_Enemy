@@ -17,7 +17,5 @@ class PermissionRequestApproved
 {
     use Dispatchable, SerializesModels;
 
-    public function __construct(public PermissionRequest $permissionRequest)
-    {
-    }
+    public function __construct(public PermissionRequest $permissionRequest) {}
 }

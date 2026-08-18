@@ -2,6 +2,11 @@
 
 namespace App\Console\Commands;
 
+use App\Enums\CheckInResult;
+use App\Enums\DeviceStatus;
+use App\Models\MobileCheckIn;
+use App\Models\UserDevice;
+use App\Models\WorkLocation;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Http;
 
@@ -71,6 +76,8 @@ class EapmsStatus extends Command
         $this->line('');
         $this->table(['Status', 'Service', 'Port', 'Latency'], $rows);
 
+        $this->renderMobileChannel();
+
         if ($allUp) {
             $this->line(' <fg=green>All services are running.</>');
         } else {
@@ -84,6 +91,53 @@ class EapmsStatus extends Command
         }
 
         $this->line('');
+    }
+
+    /**
+     * Health of the mobile check-in channel — the second attendance source alongside the
+     * biometric terminals. Purely a read of local tables, so it costs nothing and works even
+     * when both Python services are down.
+     */
+    private function renderMobileChannel(): void
+    {
+        try {
+            $devices = UserDevice::where('status', DeviceStatus::Active)->count();
+            $locations = WorkLocation::where('is_active', true)->count();
+
+            $today = MobileCheckIn::whereDate('work_date', now()->toDateString());
+            $accepted = (clone $today)->where('result', CheckInResult::Accepted)->count();
+            $rejected = (clone $today)->where('result', CheckInResult::Rejected)->count();
+            $flagged = (clone $today)->where('flagged', true)->count();
+        } catch (\Throwable) {
+            // The database being unreachable is already the headline problem; do not let a
+            // secondary panel turn the status dashboard itself into a stack trace.
+            $this->line(' <fg=yellow>Mobile channel — database unreachable.</>');
+            $this->line('');
+
+            return;
+        }
+
+        $flaggedCell = $flagged > 0
+            ? "<fg=yellow>{$flagged}</>"
+            : (string) $flagged;
+
+        $this->line(' <fg=cyan;options=bold>Mobile check-in channel</>');
+        $this->table(
+            ['Active devices', 'Geofence sites', 'Accepted today', 'Rejected today', 'Flagged today'],
+            [[$devices, $locations, $accepted, $rejected, $flaggedCell]],
+        );
+
+        if ($devices === 0) {
+            $this->line(' <fg=gray>No devices registered yet — employees enrol a phone from Devices.</>');
+        }
+
+        if ($locations === 0) {
+            $this->line(' <fg=yellow>No active work locations — every mobile check-in will be refused (no_work_location).</>');
+        }
+
+        if (! config('webauthn.require')) {
+            $this->line(' <fg=yellow>WEBAUTHN_REQUIRE is off — check-ins are accepted without a passkey assertion.</>');
+        }
     }
 
     private function checkService(array $config): array

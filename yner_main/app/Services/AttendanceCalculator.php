@@ -101,8 +101,20 @@ class AttendanceCalculator
     /**
      * Resolve the date's raw punches to employees and group their punch times.
      *
-     * Raw logs key on `device_serial`; enrollments key on `biometric_device_id`, so we
-     * build a "{serial}|{device_user_id}" => employee_id lookup once.
+     * Two channels feed this table and they resolve differently:
+     *
+     *   - Mobile check-ins already know their employee — the session was authenticated and a
+     *     WebAuthn assertion verified before the row was written — so `employee_id` is set and
+     *     is used directly.
+     *   - Biometric punches carry only a device serial and the device's own user ID, so they
+     *     resolve through device_enrollments. Raw logs key on `device_serial` while enrollments
+     *     key on `biometric_device_id`, hence the "{serial}|{device_user_id}" lookup built once
+     *     below.
+     *
+     * Everything downstream — deriveAttributes(), the permission sync engine, reports, AI — is
+     * channel-agnostic by construction: once a punch has an employee and a timestamp, where it
+     * came from stops mattering. Punches from both channels for one employee on one day merge
+     * into a single attendance record, which is the entire point of the two-channel design.
      *
      * @return array<int, Collection<int, Carbon>>
      */
@@ -118,8 +130,11 @@ class AttendanceCalculator
         $grouped = [];
 
         foreach ($logs as $log) {
-            $key = $log->device_serial.'|'.$log->device_user_id;
-            $employeeId = $lookup->get($key)?->employee_id;
+            // Mobile rows short-circuit; device rows fall through to the enrollment lookup. A
+            // mobile row could not match that lookup anyway — its sentinel serial belongs to no
+            // real device — so the fallback is safe for both channels.
+            $employeeId = $log->employee_id
+                ?? $lookup->get($log->device_serial.'|'.$log->device_user_id)?->employee_id;
 
             if ($employeeId === null) {
                 continue;

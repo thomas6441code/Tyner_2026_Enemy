@@ -6,12 +6,17 @@ use App\Enums\RoleName;
 use App\Events\PermissionRequestApproved;
 use App\Listeners\SyncAttendanceForApprovedPermission;
 use App\Models\User;
+use App\Services\WebAuthn\CredentialSourceRepository;
+use App\Services\WebAuthnService;
 use Dedoc\Scramble\Scramble;
 use Dedoc\Scramble\Support\Generator\OpenApi;
 use Dedoc\Scramble\Support\Generator\SecurityScheme;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
+use Webauthn\AttestationStatement\AttestationStatementSupportManager;
+use Webauthn\AttestationStatement\NoneAttestationStatementSupport;
+use Webauthn\Denormalizer\WebauthnSerializerFactory;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -20,7 +25,20 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // The credential repository needs the library's serializer and the RP ID in force.
+        // Both are resolved here so no call site constructs its own and drifts.
+        $this->app->singleton(CredentialSourceRepository::class, function () {
+            $serializer = (new WebauthnSerializerFactory(
+                new AttestationStatementSupportManager([new NoneAttestationStatementSupport])
+            ))->create();
+
+            $rpId = config('webauthn.rp_id')
+                ?: (parse_url((string) config('app.url'), PHP_URL_HOST) ?: 'localhost');
+
+            return new CredentialSourceRepository($serializer, $rpId);
+        });
+
+        $this->app->singleton(WebAuthnService::class);
     }
 
     /**

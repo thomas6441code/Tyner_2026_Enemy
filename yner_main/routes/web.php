@@ -8,6 +8,7 @@ use App\Http\Controllers\BiometricDeviceController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\DeviceEnrollmentController;
+use App\Http\Controllers\DeviceResetRequestController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\MobileCheckInController;
 use App\Http\Controllers\NotificationController;
@@ -108,6 +109,19 @@ Route::middleware('auth')->group(function () {
         Route::post('devices/register/verify', [UserDeviceController::class, 'registerVerify'])
             ->name('devices.register.verify');
     });
+
+    // The only way an account's single linked device can be changed. Employees may not revoke
+    // their own — self-service unlinking would reduce the binding to a formality — so they ask
+    // here and an Admin or HR Officer decides.
+    Route::post('device-reset-requests', [DeviceResetRequestController::class, 'store'])
+        ->middleware('throttle:5,60')
+        ->name('device-reset-requests.store');
+    Route::get('device-reset-requests', [DeviceResetRequestController::class, 'index'])
+        ->name('device-reset-requests.index');
+    Route::put('device-reset-requests/{deviceResetRequest}/approve', [DeviceResetRequestController::class, 'approve'])
+        ->name('device-reset-requests.approve');
+    Route::put('device-reset-requests/{deviceResetRequest}/reject', [DeviceResetRequestController::class, 'reject'])
+        ->name('device-reset-requests.reject');
 
     // Mobile check-in: the second attendance channel. The write paths are throttled because
     // each one runs a WebAuthn ceremony and a geofence evaluation, and because a tight retry

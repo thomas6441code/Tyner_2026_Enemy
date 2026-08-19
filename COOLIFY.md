@@ -43,10 +43,10 @@ On the application resource's **Environment Variables** tab, set:
 | `INTERNAL_API_SECRET` | A long random string (e.g. `openssl rand -hex 32`) — shared secret between `yner_main` and the two Python services |
 | `LLM_API_KEY` | Only needed as a fallback for standalone `ai-service` use; normally the Admin sets provider/model/key at runtime from the AI Settings page (`/settings/ai`) once the app is deployed |
 
-| `WEBAUTHN_RP_ID` | The public domain **without scheme or port** — e.g. `tyner.skyportcargo.co.tz`. Defaults to that value in `docker-compose.coolify.yml`; set it only if the domain changes. Passkeys are cryptographically bound to this, so changing it invalidates every registered device and employees must re-register their phones. |
+| `WEBAUTHN_RP_ID` | The public domain **without scheme or port** — e.g. `tyner.skyportcargo.co.tz`. Defaults to that value in `docker-compose.coolify.yml`; set it only if the domain changes. Passkeys are cryptographically bound to this, so changing it invalidates every linked device — and since employees cannot unlink their own phone, an Admin must approve a device reset for each of them before they can link it again. Budget for that before changing the domain. |
 
 `LLM_PROVIDER`, `LLM_BASE_URL`, `LLM_MODEL`, `POLL_INTERVAL_SECONDS`,
-`WEBAUTHN_RP_NAME`, `WEBAUTHN_REQUIRE` have sane defaults baked into
+`WEBAUTHN_RP_NAME`, `WEBAUTHN_EXCLUDE_LIMIT`, `DEVICE_RESET_WINDOW_HOURS` have sane defaults baked into
 `docker-compose.coolify.yml` — override only if needed.
 
 > Mobile check-in needs HTTPS: `navigator.credentials` does not exist on a plain-HTTP origin.

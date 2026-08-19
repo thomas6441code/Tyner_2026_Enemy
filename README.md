@@ -93,18 +93,43 @@ A second, independent attendance channel: an employee's phone acts as the termin
 ```dotenv
 WEBAUTHN_RP_ID=eapms.example.ac.tz      # not http://eapms.example.ac.tz:8000, not the container host
 WEBAUTHN_RP_NAME="EAPMS"
-WEBAUTHN_REQUIRE=true                    # hard block: no valid assertion, no check-in
+WEBAUTHN_EXCLUDE_LIMIT=500               # must exceed your active device count — see below
 ```
+
+There is no switch for "allow check-in without a passkey". A valid assertion is always required:
+an attendance channel that records a punch it cannot attribute to a device is not a control.
 
 Left empty, it falls back to the host of `APP_URL` — right for local work, wrong behind a proxy. Credentials are cryptographically bound to this value, so changing it invalidates every registered passkey; each credential records the `rp_id` it was created under, so a domain move produces an honest "re-register your device" prompt instead of an opaque signature failure. A `SecurityError` in the browser means the RP ID does not match the page's origin — that is a **config bug, not user error**.
 
 ### Setup
 
 1. Create a **Work Location** with the site's coordinates and a radius (minimum 20m; 150m is a sensible default — phone GPS is routinely 20–50m out). Assign it to a department, or to individual employees who work elsewhere. An employee's own location wins over their department's, and an employee with **neither** cannot check in at all — this is deliberate, a global default would silently geofence everyone against head office.
-2. Each employee registers their phone once under **Devices** (password confirmation required, then the fingerprint/Face prompt).
+2. Each employee links **one** phone under **My Device** (password confirmation required, then the fingerprint/Face prompt). See *One account, one device* below.
 3. **Check In** / **Check Out** from the phone: the page takes a fresh GPS fix, then requests the passkey assertion, then posts.
 
 Tunables live in `config/attendance.php` (`MOBILE_*` env keys): accuracy ceiling, minimum interval between punches, how far either side of the schedule a punch is accepted, and the impossible-travel speed threshold.
+
+### One account, one device
+
+An account is linked to exactly one phone, and only that phone can check it in. Three
+independent layers enforce this, because each has a gap the others cover:
+
+| Layer | Mechanism | Gap it leaves |
+| --- | --- | --- |
+| **Authenticator** | Registration sends *every* active credential in the system as `excludeCredentials`, so a phone already linked to any account aborts the ceremony itself with `InvalidStateError` — enforced in the secure element, below anything a tampered client can reach. | A dishonest client could drop the list. Capped by `WEBAUTHN_EXCLUDE_LIMIT`; a warning is logged whenever it truncates, and a truncated list means some linked phone is no longer excluded. |
+| **Server** | A random binding token minted at registration, stored only as a SHA-256 digest, carried both as an httpOnly cookie and as a localStorage mirror echoed in `X-Device-Token`. It identifies the *handset*, which a credential cannot — a synced or exported passkey still produces a valid assertion from a second phone. | A user can clear both stores. Doing so fails check-in loudly rather than silently. |
+| **Database** | `user_devices.active_user_id` — nullable and unique, mirroring `user_id` while active and NULL once revoked. Portable "at most one active device per user" on both MySQL and SQLite. | Cannot tell two handsets apart. |
+
+**Employees cannot unlink their own phone.** Self-service unlinking would reduce the rule to a
+two-click formality — hand the phone over, unlink, re-link. Instead they file a **device reset
+request**; an Admin or HR Officer reviews it, and approving atomically revokes the outgoing
+device and opens a single-use window (`DEVICE_RESET_WINDOW_HOURS`, default 24) for one
+replacement. Every step is audit-logged, and a check-in from an unlinked or mismatched device is
+recorded, flagged, and notified to Admins rather than merely refused.
+
+Note what is **not** used to identify a device: the client IP address. Everyone on the office
+Wi-Fi shares one, so it would pass for a colleague standing beside you and fail for you on mobile
+data. IPs are recorded for audit and never consulted for a decision.
 
 ### What this does and does not prove
 

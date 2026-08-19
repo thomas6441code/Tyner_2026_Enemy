@@ -14,6 +14,8 @@ enum CheckInRejection: string
 {
     case NoEmployeeRecord = 'no_employee_record';
     case WebauthnFailed = 'webauthn_failed';
+    case NoLinkedDevice = 'no_linked_device';
+    case DeviceMismatch = 'device_mismatch';
     case LowGpsAccuracy = 'low_gps_accuracy';
     case NoWorkLocation = 'no_work_location';
     case OutsideGeofence = 'outside_geofence';
@@ -34,7 +36,9 @@ enum CheckInRejection: string
     {
         return match ($this) {
             self::NoEmployeeRecord => 'Your account is not linked to an active employee record. Contact HR.',
-            self::WebauthnFailed => 'Your device could not be verified. Register this phone under Devices, then try again.',
+            self::WebauthnFailed => 'Your device could not be verified. Register this phone under My Device, then try again.',
+            self::NoLinkedDevice => 'No device is linked to your account. Register this phone under My Device, then try again.',
+            self::DeviceMismatch => 'This is not the device linked to your account. Check in from your registered phone, or request a device reset.',
             self::LowGpsAccuracy => 'Your location is not accurate enough. Move outdoors or somewhere with a clearer sky view and try again.',
             self::NoWorkLocation => 'No work location has been assigned to you or your department, so your position cannot be checked. Contact HR.',
             self::OutsideGeofence => 'You are outside your assigned work location.',

@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Models\UserDevice;
 use App\Models\WorkLocation;
 use App\Models\WorkSchedule;
+use App\Services\DeviceTokenService;
 use App\Services\WebAuthn\CredentialSourceRepository;
 use App\Services\WebAuthnService;
 use Database\Seeders\RoleSeeder;
@@ -61,6 +62,8 @@ class MobileCheckInComputeTest extends TestCase
         parent::tearDown();
     }
 
+    private ?string $deviceToken = null;
+
     private function employeeUser(): User
     {
         $user = User::factory()->create();
@@ -99,18 +102,24 @@ class MobileCheckInComputeTest extends TestCase
             'status' => DeviceStatus::Active,
         ]);
 
+        // The handset's binding token. Gate 2b refuses without it, so nothing in this file
+        // would reach the attendance pipeline it exists to test.
+        $this->deviceToken = app(DeviceTokenService::class)->issue($this->webauthn->device);
+
         return $user->fresh();
     }
 
     private function checkIn(User $user, string $direction = 'in')
     {
-        return $this->actingAs($user)->postJson('/check-in', [
-            'direction' => $direction,
-            'latitude' => $this->lat,
-            'longitude' => $this->lon,
-            'accuracy_meters' => 10,
-            'credential' => ['id' => 'cred-1'],
-        ]);
+        return $this->actingAs($user)
+            ->withHeader(config('device.token_header'), (string) $this->deviceToken)
+            ->postJson('/check-in', [
+                'direction' => $direction,
+                'latitude' => $this->lat,
+                'longitude' => $this->lon,
+                'accuracy_meters' => 10,
+                'credential' => ['id' => 'cred-1'],
+            ]);
     }
 
     public function test_a_check_in_dispatches_a_compute_job_for_its_own_date(): void

@@ -90,13 +90,4 @@ class EapmsStatusCommandTest extends TestCase
             ->doesntExpectOutputToContain('No active work locations')
             ->assertSuccessful();
     }
-
-    public function test_it_warns_when_webauthn_is_not_required(): void
-    {
-        config(['webauthn.require' => false]);
-
-        $this->artisan('eapms:status')
-            ->expectsOutputToContain('WEBAUTHN_REQUIRE is off')
-            ->assertSuccessful();
-    }
 }

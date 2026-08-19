@@ -2,31 +2,40 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\DeviceResetStatus;
 use App\Enums\DeviceStatus;
 use App\Enums\RoleName;
 use App\Models\AuditLog;
+use App\Models\DeviceResetRequest;
+use App\Models\User;
 use App\Models\UserDevice;
 use App\Notifications\SystemNotification;
+use App\Services\DeviceTokenService;
 use App\Services\WebAuthnService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Notification;
 use Inertia\Inertia;
 use Inertia\Response;
 use RuntimeException;
 
 /**
- * Registration and lifecycle of WebAuthn platform authenticators (phones).
+ * Registration and lifecycle of the one WebAuthn platform authenticator bound to an account.
  *
  * The two ceremony endpoints return JSON rather than Inertia responses: they are called with
  * fetch() from inside the WebAuthn handler chain, not as page visits.
  */
 class UserDeviceController extends Controller
 {
-    public function __construct(private readonly WebAuthnService $webauthn) {}
+    public function __construct(
+        private readonly WebAuthnService $webauthn,
+        private readonly DeviceTokenService $deviceTokens,
+    ) {}
 
     /**
-     * Own devices; Admins additionally see everyone's.
+     * The employee's own device; Admins additionally see everyone's.
      */
     public function index(Request $request): Response
     {
@@ -45,6 +54,10 @@ class UserDeviceController extends Controller
                 'device_name' => $device->device_name,
                 'owner' => $device->user?->name,
                 'is_own' => $device->user_id === $user->id,
+                // The device currently holding its owner's single binding slot, as opposed to
+                // one that is merely un-revoked. Under the unique index these are the same
+                // thing; surfacing it explicitly means the UI never has to infer it.
+                'is_linked' => $device->active_user_id !== null,
                 'status' => $device->status->value,
                 'status_label' => $device->status->label(),
                 'rp_id' => $device->rp_id,
@@ -60,6 +73,15 @@ class UserDeviceController extends Controller
                 'can_delete' => $user->can('delete', $device),
             ]);
 
+        $canRegister = $user->can('create', UserDevice::class);
+        $myDevice = UserDevice::boundTo($user->id);
+        $openReset = DeviceResetRequest::query()->where('user_id', $user->id)->usable()->first();
+        $pendingReset = DeviceResetRequest::query()
+            ->where('user_id', $user->id)
+            ->where('status', DeviceResetStatus::Pending)
+            ->latest()
+            ->first();
+
         return Inertia::render('devices/index', [
             'devices' => $devices,
             'stats' => [
@@ -67,11 +89,28 @@ class UserDeviceController extends Controller
                     ->when(! $isAdmin, fn ($q) => $q->where('user_id', $user->id))->count(),
                 'revoked' => UserDevice::where('status', DeviceStatus::Revoked)
                     ->when(! $isAdmin, fn ($q) => $q->where('user_id', $user->id))->count(),
-                'mine' => UserDevice::where('user_id', $user->id)
-                    ->where('status', DeviceStatus::Active)->count(),
+                'mine' => $myDevice !== null ? 1 : 0,
+            ],
+            // Everything the employee-facing card needs to decide what to offer: register,
+            // request a reset, or simply wait for a decision.
+            'binding' => [
+                'has_device' => $myDevice !== null,
+                'device_name' => $myDevice?->device_name,
+                'last_used_at' => $myDevice?->last_used_at?->toDateTimeString(),
+                'registered_at' => $myDevice?->created_at?->toDateTimeString(),
+                'reset_pending' => $pendingReset !== null,
+                'reset_approved_until' => $openReset?->approved_until?->toDateTimeString(),
             ],
             'actions' => [
-                'register' => $user->can('create', UserDevice::class),
+                'register' => $canRegister,
+                // Offered whenever the employee cannot register, not merely when they still
+                // hold a device. Someone whose phone an Admin revoked has no device AND no
+                // approval, and without this they would be stranded — unable to link a
+                // replacement and unable to ask for one.
+                'requestReset' => ! $canRegister
+                    && $pendingReset === null
+                    && $user->can('create', DeviceResetRequest::class),
+                'reviewResets' => $user->can('viewAny', DeviceResetRequest::class),
             ],
             'isAdmin' => $isAdmin,
             'rpId' => $this->webauthn->rpId(),
@@ -90,7 +129,7 @@ class UserDeviceController extends Controller
     }
 
     /**
-     * Verify the attestation and persist the credential.
+     * Verify the attestation, bind the device to this account, and mint its binding token.
      */
     public function registerVerify(Request $request): JsonResponse
     {
@@ -101,16 +140,35 @@ class UserDeviceController extends Controller
             'credential' => ['required', 'array'],
         ]);
 
+        // Before the ceremony: is the handset already spoken for? The authenticator should have
+        // refused this at excludeCredentials, so reaching here means either the passkey was
+        // deleted and re-created, or the client is not behaving. Either way it is the signal
+        // the binding exists to catch, so it is refused loudly rather than quietly.
+        if ($conflict = $this->conflictingDevice($request)) {
+            return $this->refuseLinkConflict($request, $conflict);
+        }
+
         try {
-            $device = $this->webauthn->verifyRegistration(
-                $request->user(),
-                $validated['credential'],
-                $validated['device_name'],
-                $request,
-            );
+            $result = DB::transaction(function () use ($request, $validated) {
+                $device = $this->webauthn->verifyRegistration(
+                    $request->user(),
+                    $validated['credential'],
+                    $validated['device_name'],
+                    $request,
+                );
+
+                // Spend the reset approval inside the same transaction that consumes it. If the
+                // device write fails, the approval must still be there; if it succeeds, the
+                // approval must be gone. Anything else lets one approval buy two devices.
+                $this->consumeResetApproval($request->user());
+
+                return [$device, $this->deviceTokens->issue($device)];
+            });
         } catch (RuntimeException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
         }
+
+        [$device, $token] = $result;
 
         AuditLog::create([
             'user_id' => $request->user()->id,
@@ -131,23 +189,29 @@ class UserDeviceController extends Controller
             route('devices.index'),
         ));
 
+        $this->deviceTokens->queueCookie($token);
+
         return response()->json([
-            'message' => 'Device registered.',
+            'message' => 'Device linked to your account.',
             'device' => ['id' => $device->id, 'device_name' => $device->device_name],
+            // Returned exactly once, for the client to mirror into localStorage. The cookie
+            // above carries the same value; two stores because browsers clear them separately.
+            'device_token' => $token,
         ]);
     }
 
     /**
      * Revoke a device. Never a hard delete — the row is audit evidence.
+     *
+     * Admin-only by policy. An owner who has lost their phone files a device reset request
+     * instead; see UserDevicePolicy::delete for why self-revocation is not offered.
      */
     public function destroy(Request $request, UserDevice $device): RedirectResponse
     {
         $this->authorize('delete', $device);
 
-        $byAdmin = $device->user_id !== $request->user()->id;
-
         if ($device->isActive()) {
-            $device->revoke($byAdmin ? 'Revoked by an administrator.' : 'Revoked by the owner.');
+            $device->revoke('Revoked by an administrator.');
 
             AuditLog::create([
                 'user_id' => $request->user()->id,
@@ -165,5 +229,65 @@ class UserDeviceController extends Controller
         }
 
         return redirect()->route('devices.index')->with('status', 'Device revoked.');
+    }
+
+    /**
+     * A device already bound to somebody else, identified by the token this handset presented.
+     */
+    private function conflictingDevice(Request $request): ?UserDevice
+    {
+        $existing = $this->deviceTokens->resolve($this->deviceTokens->presented($request));
+
+        return $existing !== null && $existing->user_id !== $request->user()->id ? $existing : null;
+    }
+
+    private function refuseLinkConflict(Request $request, UserDevice $conflict): JsonResponse
+    {
+        AuditLog::create([
+            'user_id' => $request->user()->id,
+            'auditable_type' => UserDevice::class,
+            'auditable_id' => $conflict->id,
+            'action' => 'device.link_conflict',
+            'new_values' => [
+                'bound_to_user_id' => $conflict->user_id,
+                'attempted_by_user_id' => $request->user()->id,
+                'ip' => $request->ip(),
+            ],
+        ]);
+
+        $admins = User::role(RoleName::Admin->value)->get();
+
+        if ($admins->isNotEmpty()) {
+            Notification::send($admins, SystemNotification::deviceLinkConflict(
+                $request->user()->name,
+                $conflict->user?->name ?? 'another account',
+                route('devices.index'),
+            ));
+        }
+
+        return response()->json([
+            'message' => 'This phone is already linked to another account. One device can only be linked to one account.',
+        ], 422);
+    }
+
+    /**
+     * Mark the reset approval that permitted this registration as spent.
+     *
+     * `lockForUpdate` because two concurrent registrations would otherwise both read the same
+     * unspent approval. The unique index on `active_user_id` would stop the second device from
+     * being created anyway, but leaving a spent approval looking unspent is its own bug.
+     *
+     * A first-ever registration has no approval to consume, which is why this is a no-op rather
+     * than an error when nothing is found.
+     */
+    private function consumeResetApproval(User $user): void
+    {
+        DeviceResetRequest::query()
+            ->where('user_id', $user->id)
+            ->usable()
+            ->lockForUpdate()
+            ->first()
+            ?->forceFill(['used_at' => now()])
+            ->save();
     }
 }

@@ -89,11 +89,6 @@ class WebAuthnService
         return parse_url((string) config('app.url'), PHP_URL_HOST) ?: 'localhost';
     }
 
-    public function isRequired(): bool
-    {
-        return (bool) config('webauthn.require', true);
-    }
-
     /*
     |--------------------------------------------------------------------------
     | Registration ceremony
@@ -132,9 +127,12 @@ class WebAuthnService
                 residentKey: AuthenticatorSelectionCriteria::RESIDENT_KEY_REQUIREMENT_PREFERRED,
             ),
             attestation: PublicKeyCredentialCreationOptions::ATTESTATION_CONVEYANCE_PREFERENCE_NONE,
-            // Stops the same phone being registered twice, which would otherwise leave the
-            // user with two credentials and no way to tell them apart in the devices list.
-            excludeCredentials: $this->credentials->descriptorsFor($user),
+            // EVERY active credential in the system, not just this user's. The authenticator
+            // itself then refuses (InvalidStateError) if the phone in the user's hand is
+            // already linked to any account — which is how "one device, one account" is
+            // enforced below the browser, where a tampered client cannot reach it. See
+            // CredentialSourceRepository::allActiveDescriptors().
+            excludeCredentials: $this->credentials->allActiveDescriptors(),
             timeout: (int) config('webauthn.timeout_ms'),
         );
 

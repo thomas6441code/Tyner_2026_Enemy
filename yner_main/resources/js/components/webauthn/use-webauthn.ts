@@ -2,6 +2,8 @@ import { startAuthentication, startRegistration } from '@simplewebauthn/browser'
 import { useCallback, useEffect, useState } from 'react';
 import { route } from 'ziggy-js';
 
+import { deviceTokenHeader, storeDeviceToken } from '@/lib/device-token';
+
 /**
  * Why @simplewebauthn/browser rather than calling navigator.credentials directly: every field
  * that crosses the wire is an ArrayBuffer on the client and base64url on the server. Hand-written
@@ -72,7 +74,10 @@ export function describeWebAuthnError(error: unknown): string {
             // deliberately does not distinguish them, to avoid leaking user behaviour.
             return 'The prompt was cancelled or timed out. Try again and complete the fingerprint or face check.';
         case 'InvalidStateError':
-            return 'This device is already registered on your account.';
+            // The authenticator itself refused, because it already holds a credential from our
+            // excludeCredentials list. That list covers EVERY account, so this is the phone
+            // saying "I am already linked" — possibly to somebody else's account entirely.
+            return 'This phone is already linked to an account. One device can only be linked to one account. If it is your own phone, ask an administrator to reset your device before registering again.';
         case 'NotSupportedError':
             return 'This device has no built-in authenticator that this site can use.';
         case 'SecurityError':
@@ -128,7 +133,15 @@ export function useWebAuthn() {
                 return { ok: false, message: await errorMessage(verifyResponse) };
             }
 
-            return { ok: true, message: 'Device registered.' };
+            // Mirror the binding token the server just minted. The same value also arrives as
+            // an httpOnly cookie; this copy is what survives the cookie being cleared.
+            const verified = await verifyResponse.json().catch(() => ({}));
+
+            if (typeof verified.device_token === 'string') {
+                storeDeviceToken(verified.device_token);
+            }
+
+            return { ok: true, message: verified.message ?? 'Device linked to your account.' };
         } catch (error) {
             return { ok: false, message: describeWebAuthnError(error) };
         } finally {
@@ -168,6 +181,9 @@ function jsonHeaders(): Record<string, string> {
         Accept: 'application/json',
         'X-Requested-With': 'XMLHttpRequest',
         ...(token ? { 'X-CSRF-TOKEN': token } : {}),
+        // Sent on registration too, not only on check-in: it is how the server recognises a
+        // handset that is already linked to a different account.
+        ...deviceTokenHeader(),
     };
 }
 

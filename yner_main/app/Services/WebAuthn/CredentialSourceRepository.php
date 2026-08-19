@@ -5,6 +5,7 @@ namespace App\Services\WebAuthn;
 use App\Models\User;
 use App\Models\UserDevice;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\Serializer\SerializerInterface;
 use Webauthn\CredentialRecord;
 use Webauthn\PublicKeyCredentialDescriptor;
@@ -80,7 +81,59 @@ class CredentialSourceRepository
      */
     public function descriptorsFor(User $user): array
     {
-        return $this->usableDevicesFor($user)
+        return $this->toDescriptors($this->usableDevicesFor($user));
+    }
+
+    /**
+     * Descriptors for EVERY active credential in the system, for `excludeCredentials`.
+     *
+     * This is the hardware half of the one-account-one-device rule. Handed the full list, a
+     * platform authenticator that already holds any of these credentials aborts registration
+     * itself with InvalidStateError — so a phone linked to one account physically cannot mint
+     * a passkey for a second. The check happens inside the secure element, below anything a
+     * tampered client could reach.
+     *
+     * Privacy: credential IDs are opaque random bytes, not identifiers of people, and the list
+     * only ever reaches an authenticated employee who is mid-registration. The one thing it
+     * leaks is a rough count of enrolled devices, which is acceptable for what it buys.
+     *
+     * Ordering is most-recently-used first so that if `exclude_limit` ever truncates, the
+     * credentials actually in circulation are the ones still covered.
+     *
+     * @return array<int, PublicKeyCredentialDescriptor>
+     */
+    public function allActiveDescriptors(): array
+    {
+        $limit = max(1, (int) config('webauthn.exclude_limit', 500));
+
+        $total = UserDevice::query()->usable($this->rpId)->count();
+
+        if ($total > $limit) {
+            // Not fatal, but it means the guarantee has holes: some already-linked phone is no
+            // longer being excluded and could enroll for a second account.
+            Log::warning('WebAuthn excludeCredentials truncated; raise WEBAUTHN_EXCLUDE_LIMIT.', [
+                'active_credentials' => $total,
+                'limit' => $limit,
+            ]);
+        }
+
+        $devices = UserDevice::query()->usable($this->rpId)
+            ->orderByRaw('last_used_at is null')
+            ->orderByDesc('last_used_at')
+            ->orderByDesc('id')
+            ->limit($limit)
+            ->get();
+
+        return $this->toDescriptors($devices);
+    }
+
+    /**
+     * @param  Collection<int, UserDevice>  $devices
+     * @return array<int, PublicKeyCredentialDescriptor>
+     */
+    private function toDescriptors(Collection $devices): array
+    {
+        return $devices
             ->map(fn (UserDevice $device) => PublicKeyCredentialDescriptor::create(
                 PublicKeyCredentialDescriptor::CREDENTIAL_TYPE_PUBLIC_KEY,
                 $this->toCredentialRecord($device)->publicKeyCredentialId,

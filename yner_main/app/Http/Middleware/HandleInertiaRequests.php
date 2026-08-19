@@ -7,6 +7,7 @@ use App\Models\AiAnomaly;
 use App\Models\BiometricDevice;
 use App\Models\Department;
 use App\Models\DeviceEnrollment;
+use App\Models\DeviceResetRequest;
 use App\Models\Employee;
 use App\Models\MobileCheckIn;
 use App\Models\PermissionRequest;
@@ -77,6 +78,9 @@ class HandleInertiaRequests extends Middleware
                 // employee) are separate capabilities, so the sidebar needs both flags.
                 'viewMobileCheckIns' => $user?->can('viewAny', MobileCheckIn::class) ?? false,
                 'checkIn' => $user?->can('create', MobileCheckIn::class) ?? false,
+                // The device reset queue is the only route by which an account's single linked
+                // device can change hands, so its reviewers (Admin/HR) need a way in.
+                'reviewDeviceResets' => $user?->can('viewAny', DeviceResetRequest::class) ?? false,
             ],
             'unreadNotifications' => $user?->unreadNotifications()->count() ?? 0,
             'flash' => [

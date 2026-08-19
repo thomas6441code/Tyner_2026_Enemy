@@ -227,21 +227,17 @@ class UserDeviceTest extends TestCase
     |--------------------------------------------------------------------------
     */
 
-    public function test_an_owner_can_revoke_their_own_device(): void
+    public function test_an_owner_cannot_revoke_their_own_device(): void
     {
-        Notification::fake();
         $user = $this->employeeUser();
         $device = $this->device($user);
 
-        $this->actingAs($user)->delete("/devices/{$device->id}")->assertRedirect('/devices');
+        // Self-revocation is the hinge of the whole binding. If an employee could unlink and
+        // immediately re-link, "one account, one device" would collapse into a two-click
+        // formality — hand the phone over, unlink, re-link. They file a reset request instead.
+        $this->actingAs($user)->delete("/devices/{$device->id}")->assertForbidden();
 
-        $device->refresh();
-        $this->assertSame(DeviceStatus::Revoked, $device->status);
-        $this->assertNotNull($device->revoked_at);
-        // Never hard-deleted: the row records which authenticator could have produced which
-        // check-in, which is the point of the audit trail.
-        $this->assertDatabaseHas('user_devices', ['id' => $device->id]);
-        $this->assertDatabaseHas('audit_logs', ['action' => 'device.revoked']);
+        $this->assertSame(DeviceStatus::Active, $device->fresh()->status);
     }
 
     public function test_a_user_cannot_revoke_someone_elses_device(): void
@@ -328,12 +324,5 @@ class UserDeviceTest extends TestCase
         config()->set('app.url', 'https://eapms.example.ac.tz');
 
         $this->assertSame('eapms.example.ac.tz', app(WebAuthnService::class)->rpId());
-    }
-
-    public function test_webauthn_is_required_by_default(): void
-    {
-        // Hard block, not graceful degradation: an attendance channel that falls back to
-        // trusting the browser is not an attendance control.
-        $this->assertTrue(app(WebAuthnService::class)->isRequired());
     }
 }

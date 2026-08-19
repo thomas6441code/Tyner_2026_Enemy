@@ -25,6 +25,7 @@ export interface SharedData {
         viewAccountInvitations: boolean;
         viewMobileCheckIns: boolean;
         checkIn: boolean;
+        reviewDeviceResets: boolean;
     };
     flash: {
         status: string | null;

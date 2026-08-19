@@ -34,6 +34,13 @@ use RuntimeException;
  * gate passes is a `raw_attendance_logs` row written, and from that point the punch is
  * indistinguishable from a biometric one to everything downstream.
  *
+ * ONE ACCOUNT, ONE DEVICE. Gates 2 and 2b together answer "is this the one handset linked to
+ * this account?" — the assertion proves a registered credential signed, and the device binding
+ * token proves the handset presenting it is the one that was enrolled. Neither is optional and
+ * there is no degraded mode: a request that cannot establish which device it came from is
+ * refused, because that is the only question this channel is really asking. What the account
+ * cannot do is quietly re-point itself at a different phone; see DeviceResetRequest.
+ *
  * WHAT THIS CHANNEL DOES AND DOES NOT PROVE. The WebAuthn assertion proves that a specific
  * registered device, unlocked by its owner's fingerprint or face, made this request. The
  * coordinates prove nothing at all — `navigator.geolocation` is client-supplied and spoofable
@@ -46,6 +53,7 @@ class MobileCheckInService
     public function __construct(
         private readonly GeofenceService $geofence,
         private readonly WebAuthnService $webauthn,
+        private readonly DeviceTokenService $deviceTokens,
     ) {}
 
     /**
@@ -87,12 +95,19 @@ class MobileCheckInService
 
         // ---- Gate 2: WebAuthn assertion --------------------------------------------------
         // Verified against the challenge this server put in the session, which the service
-        // deletes as it reads it. A client claim of "my device is verified" is never accepted:
-        // with WEBAUTHN_REQUIRE on (the default), no valid assertion means no check-in.
+        // deletes as it reads it. A client claim of "my device is verified" is never accepted,
+        // and there is no downgrade path: no valid assertion means no check-in, full stop.
         $device = $this->verifyDevice($user, $payload, $attempt, $request);
 
-        $attempt['user_device_id'] = $device?->id;
-        $attempt['webauthn_verified'] = $device !== null;
+        $attempt['user_device_id'] = $device->id;
+        $attempt['webauthn_verified'] = true;
+
+        // ---- Gate 2b: the device binding -------------------------------------------------
+        // An account is linked to one and only one device, and only that device may punch for
+        // it. The assertion above proves a registered credential signed; this proves it was
+        // THE credential — and that the handset presenting it is the same handset that was
+        // enrolled, which the credential alone cannot establish.
+        $this->assertBoundDevice($user, $device, $attempt, $request);
 
         // ---- Gate 3: GPS accuracy --------------------------------------------------------
         // A coarse fix derived from IP or a cell tower can be kilometres out, and would sail
@@ -153,12 +168,18 @@ class MobileCheckInService
     */
 
     /**
-     * Verify the WebAuthn assertion, honouring the WEBAUTHN_REQUIRE hard-block setting.
+     * Verify the WebAuthn assertion. Unconditional — there is no unverified path.
+     *
+     * There used to be a WEBAUTHN_REQUIRE flag allowing a degraded mode in which an unverified
+     * request still produced a punch. It was removed rather than defaulted-on, because under
+     * the one-account-one-device rule that mode is a contradiction: "which device is this" is
+     * the entire question this channel asks, and an attendance control that answers "we could
+     * not tell" and records the punch anyway is not a control.
      *
      * @param  array<string, mixed>  $payload
      * @param  array<string, mixed>  $attempt
      */
-    private function verifyDevice(User $user, array $payload, array $attempt, ?Request $request): ?UserDevice
+    private function verifyDevice(User $user, array $payload, array $attempt, ?Request $request): UserDevice
     {
         $credential = $payload['credential'] ?? null;
 
@@ -169,14 +190,53 @@ class MobileCheckInService
 
             return $this->webauthn->verifyAssertion($user, $credential, $request);
         } catch (RuntimeException) {
-            if ($this->webauthn->isRequired()) {
-                $this->refuse($attempt, CheckInRejection::WebauthnFailed);
-            }
+            $this->refuse($attempt, CheckInRejection::WebauthnFailed);
+        }
+    }
 
-            // Only reachable with WEBAUTHN_REQUIRE=false, a deliberate downgrade for
-            // environments without a secure context. The punch is still recorded, but
-            // `webauthn_verified` stays false so the audit log shows exactly what was proven.
-            return null;
+    /**
+     * The asserted credential must be the account's one bound device, presented by the handset
+     * that actually holds it.
+     *
+     * Three separate things are checked, and they fail for genuinely different reasons:
+     *
+     *   1. NO BINDING AT ALL. The account has no active device — nothing to check in from.
+     *      Distinguished from a mismatch so the UI can offer registration rather than a reset.
+     *
+     *   2. WRONG CREDENTIAL. The assertion verified, and belongs to this user, but is not the
+     *      credential holding the binding slot. In practice this means a credential that
+     *      survived on a phone whose binding was later moved elsewhere.
+     *
+     *   3. WRONG HANDSET. The credential is right but the device token is missing or belongs to
+     *      a different row. This is the case WebAuthn cannot see: a passkey exported or synced
+     *      to a second handset still produces a valid assertion for the same credential ID, and
+     *      only a secret pinned to the original device notices.
+     *
+     * All three are recorded as rejections AND flagged, because each of them is a plausible
+     * account-sharing attempt rather than an ordinary user error, and an Admin should be told.
+     *
+     * @param  array<string, mixed>  $attempt
+     */
+    private function assertBoundDevice(User $user, UserDevice $device, array $attempt, ?Request $request): void
+    {
+        $bound = UserDevice::boundTo($user->id);
+
+        if ($bound === null) {
+            $this->refuse($attempt, CheckInRejection::NoLinkedDevice);
+        }
+
+        if ($bound->id !== $device->id) {
+            $this->refuse($attempt, CheckInRejection::DeviceMismatch, flagged: true,
+                flagReason: 'Assertion came from a credential that is not the account\'s linked device.');
+        }
+
+        $presented = $this->deviceTokens->resolve($this->deviceTokens->presented($request));
+
+        if ($presented === null || $presented->id !== $bound->id) {
+            $this->refuse($attempt, CheckInRejection::DeviceMismatch, flagged: true,
+                flagReason: $presented === null
+                    ? 'No device binding token was presented by this handset.'
+                    : 'The device binding token belongs to a different device.');
         }
     }
 
@@ -430,13 +490,24 @@ class MobileCheckInService
     /**
      * Persist the refusal, then throw. For gates running outside a transaction.
      *
+     * `$flagged` is for refusals that are not merely a user getting something wrong — a device
+     * mismatch is a plausible account-sharing attempt, and an Admin should hear about it the
+     * same way they hear about a flagged acceptance. Ordinary refusals (bad GPS, wrong hour)
+     * stay unflagged; flagging everything would make the flag mean nothing.
+     *
      * @param  array<string, mixed>  $attempt
      *
      * @throws MobileCheckInException always
      */
-    private function refuse(array $attempt, CheckInRejection $reason): void
+    private function refuse(array $attempt, CheckInRejection $reason, bool $flagged = false, ?string $flagReason = null): never
     {
-        throw new MobileCheckInException($reason, $this->persistRejection($attempt, $reason));
+        $row = $this->persistRejection($attempt, $reason, $flagged, $flagReason);
+
+        if ($flagged && $row !== null) {
+            $this->notifyAdminsOfFlag($row);
+        }
+
+        throw new MobileCheckInException($reason, $row);
     }
 
     /**
@@ -446,7 +517,7 @@ class MobileCheckInService
      *
      * @throws MobileCheckInException always
      */
-    private function abort(CheckInRejection $reason): void
+    private function abort(CheckInRejection $reason): never
     {
         throw new MobileCheckInException($reason);
     }
@@ -454,7 +525,7 @@ class MobileCheckInService
     /**
      * @param  array<string, mixed>  $attempt
      */
-    private function persistRejection(array $attempt, CheckInRejection $reason): ?MobileCheckIn
+    private function persistRejection(array $attempt, CheckInRejection $reason, bool $flagged = false, ?string $flagReason = null): ?MobileCheckIn
     {
         // Gate 1 fires before an employee is known, and this table's FK requires one. Nothing
         // is lost: the controller still refuses, and an account with no employee has no
@@ -466,6 +537,8 @@ class MobileCheckInService
         return MobileCheckIn::create($attempt + [
             'result' => CheckInResult::Rejected,
             'rejection_reason' => $reason,
+            'flagged' => $flagged,
+            'flag_reason' => $flagReason,
         ]);
     }
 

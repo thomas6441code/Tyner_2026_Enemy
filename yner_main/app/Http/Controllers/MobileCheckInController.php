@@ -43,7 +43,7 @@ class MobileCheckInController extends Controller
         if ($employee === null || $employee->status !== 'active') {
             return Inertia::render('check-in/show', [
                 'employee' => null,
-                'webauthnRequired' => $this->webauthn->isRequired(),
+                'linkedDevice' => null,
             ]);
         }
 
@@ -68,11 +68,14 @@ class MobileCheckInController extends Controller
                 'end_time' => substr((string) $employee->workSchedule->end_time, 0, 5),
             ] : null,
             'windows' => $this->checkIns->scheduleWindows($employee),
-            'activeDevices' => UserDevice::where('user_id', $user->id)
-                ->usable($this->webauthn->rpId())
-                ->count(),
+            // The one device linked to this account, or null. The page needs the distinction
+            // between "no device yet" (offer registration) and "a device, but not this one"
+            // (offer a reset request) — a bare count could not tell them apart.
+            'linkedDevice' => ($device = UserDevice::boundTo($user->id)) ? [
+                'name' => $device->device_name,
+                'rp_id_matches' => $device->rp_id === $this->webauthn->rpId(),
+            ] : null,
             'maxAccuracyMeters' => (int) config('attendance.mobile.max_accuracy_meters'),
-            'webauthnRequired' => $this->webauthn->isRequired(),
             'actions' => ['create' => $user->can('create', MobileCheckIn::class)],
         ]);
     }
@@ -104,8 +107,9 @@ class MobileCheckInController extends Controller
             'latitude' => ['required', 'numeric', 'between:-90,90'],
             'longitude' => ['required', 'numeric', 'between:-180,180'],
             'accuracy_meters' => ['required', 'numeric', 'min:0'],
-            // Absent only when WEBAUTHN_REQUIRE is off; the service, not this validator, is
-            // what enforces the hard block.
+            // Validated as optional here and required by the service. Keeping the hard block
+            // in one place means a request with no assertion is refused with a check-in
+            // rejection reason the employee can act on, not a 422 field error.
             'credential' => ['nullable', 'array'],
         ]);
 
@@ -154,7 +158,7 @@ class MobileCheckInController extends Controller
             'flagged' => $request->boolean('flagged'),
         ];
 
-        $checkIns = MobileCheckIn::with(['employee', 'workLocation', 'userDevice'])
+        $checkIns = MobileCheckIn::with(['employee', 'workLocation', 'userDevice.user'])
             ->when($filters['from'], fn ($q, $from) => $q->whereDate('work_date', '>=', $from))
             ->when($filters['to'], fn ($q, $to) => $q->whereDate('work_date', '<=', $to))
             ->when($filters['employee'], fn ($q, $id) => $q->where('employee_id', $id))
@@ -177,6 +181,7 @@ class MobileCheckInController extends Controller
                 'within_geofence' => $checkIn->within_geofence,
                 'webauthn_verified' => $checkIn->webauthn_verified,
                 'device_name' => $checkIn->userDevice?->device_name,
+                'device_owner' => $checkIn->userDevice?->user?->name,
                 'result' => $checkIn->result->value,
                 'result_label' => $checkIn->result->label(),
                 'rejection_reason' => $checkIn->rejection_reason?->value,

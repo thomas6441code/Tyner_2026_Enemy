@@ -134,10 +134,6 @@ class EapmsStatus extends Command
         if ($locations === 0) {
             $this->line(' <fg=yellow>No active work locations — every mobile check-in will be refused (no_work_location).</>');
         }
-
-        if (! config('webauthn.require')) {
-            $this->line(' <fg=yellow>WEBAUTHN_REQUIRE is off — check-ins are accepted without a passkey assertion.</>');
-        }
     }
 
     private function checkService(array $config): array

@@ -30,6 +30,17 @@ class UserDevice extends Model
         'status',
     ];
 
+    /**
+     * Mirrors the column default so the `saving` hook below sees `active` on a brand-new row.
+     *
+     * Without this the model's status would be null until the database applied its own
+     * default, and the hook would null `active_user_id` on a device that is in fact active —
+     * quietly leaving the user's binding slot empty.
+     */
+    protected $attributes = [
+        'status' => DeviceStatus::Active->value,
+    ];
+
     protected function casts(): array
     {
         return [
@@ -38,12 +49,43 @@ class UserDevice extends Model
             'status' => DeviceStatus::class,
             'last_used_at' => 'datetime',
             'revoked_at' => 'datetime',
+            'device_token_issued_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Keep `active_user_id` in lockstep with `status`, everywhere, always.
+     *
+     * `active_user_id` carries a unique index and is the database's expression of "at most one
+     * active device per user". Maintaining it in a model hook rather than at each call site is
+     * the whole point: a future path that flips `status` without knowing about this column
+     * still cannot corrupt the invariant, and cannot accidentally leave a revoked row holding
+     * the slot its owner now needs for a replacement.
+     */
+    protected static function booted(): void
+    {
+        static::saving(function (self $device) {
+            $device->active_user_id = $device->status === DeviceStatus::Active
+                ? $device->user_id
+                : null;
+        });
     }
 
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * The one device currently linked to a user, if any.
+     *
+     * Reads through `active_user_id` rather than `where user_id = ? and status = active`
+     * precisely because that column is the uniquely-indexed one — the query cannot return two
+     * rows even if something upstream is wrong.
+     */
+    public static function boundTo(int $userId): ?self
+    {
+        return static::query()->where('active_user_id', $userId)->first();
     }
 
     /**

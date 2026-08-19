@@ -30,7 +30,11 @@ services:
       # mismatch surfaces in the browser as an opaque SecurityError.
       WEBAUTHN_RP_ID: ${WEBAUTHN_RP_ID:-tyner.skyportcargo.co.tz}
       WEBAUTHN_RP_NAME: ${WEBAUTHN_RP_NAME:-EAPMS}
-      WEBAUTHN_REQUIRE: ${WEBAUTHN_REQUIRE:-true}
+      # Registration excludes every active credential system-wide so one phone cannot link to
+      # two accounts. Must exceed the number of active devices; a warning is logged if it truncates.
+      WEBAUTHN_EXCLUDE_LIMIT: ${WEBAUTHN_EXCLUDE_LIMIT:-500}
+      # How long an approved device reset stays usable. Employees cannot unlink their own phone.
+      DEVICE_RESET_WINDOW_HOURS: ${DEVICE_RESET_WINDOW_HOURS:-24}
     volumes:
       - yner_main_storage:/var/www/html/storage/app
     expose:

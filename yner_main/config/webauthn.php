@@ -39,20 +39,21 @@ return [
 
     /*
     |--------------------------------------------------------------------------
-    | Hard requirement
+    | Exclude-credentials cap
     |--------------------------------------------------------------------------
     |
-    | When true (the default and the intended posture), the server refuses any mobile
-    | check-in that does not carry a valid assertion. There is deliberately no graceful
-    | degradation path: an attendance channel that falls back to "trust the browser" when
-    | WebAuthn is unavailable is not an attendance control at all.
+    | Registration sends every active credential in the system as `excludeCredentials`, so a
+    | phone that already holds one refuses to mint a second for another account. That list is
+    | the hardware half of the one-account-one-device rule and it grows with headcount, so it
+    | is capped: authenticators have their own practical limits, and the request is not free.
     |
-    | Set false only in a local environment where you are testing the surrounding flow
-    | without a platform authenticator.
+    | The list is ordered most-recently-used first, so if the cap ever bites, the credentials
+    | actually in circulation are the ones covered. Raise this above the number of active
+    | devices you expect; a warning is logged whenever it truncates.
     |
     */
 
-    'require' => (bool) env('WEBAUTHN_REQUIRE', true),
+    'exclude_limit' => (int) env('WEBAUTHN_EXCLUDE_LIMIT', 500),
 
     /*
     |--------------------------------------------------------------------------

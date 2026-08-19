@@ -198,6 +198,94 @@ class SystemNotification extends Notification
     }
 
     /**
+     * The single-device policy retired a device the user already had. Sent by the data
+     * migration and whenever an approved reset revokes the outgoing phone.
+     */
+    public static function deviceSuperseded(string $deviceName, string $actionUrl): self
+    {
+        return new self(
+            type: 'device.superseded',
+            title: 'Device unlinked',
+            message: "\"{$deviceName}\" is no longer linked to your account. Only one device may be linked at a time, so check in from your current phone — or request a device reset if you no longer have it.",
+            actionUrl: $actionUrl,
+            actionLabel: 'Open My Device',
+            meta: [
+                'device_name' => $deviceName,
+            ],
+            mailSubject: 'A device was unlinked from your EAPMS account',
+        );
+    }
+
+    /**
+     * Someone tried to register a phone that is already bound to a different account. This is
+     * the account-sharing signal the whole binding exists to catch, so an Admin hears about
+     * every one of them.
+     */
+    public static function deviceLinkConflict(string $attemptedByName, string $boundToName, string $actionUrl): self
+    {
+        return new self(
+            type: 'device.link_conflict',
+            title: 'Device already linked to another account',
+            message: "{$attemptedByName} tried to register a phone that is already linked to {$boundToName}. One device may only be linked to one account.",
+            actionUrl: $actionUrl,
+            actionLabel: 'Review devices',
+            meta: [
+                'attempted_by' => $attemptedByName,
+                'bound_to' => $boundToName,
+            ],
+            mailSubject: 'EAPMS security alert: device link conflict',
+        );
+    }
+
+    public static function deviceResetRequested(string $employeeName, int $requestId, string $actionUrl): self
+    {
+        return new self(
+            type: 'device-reset.requested',
+            title: 'New device reset request',
+            message: "{$employeeName} asked to link a different device (request #{$requestId}).",
+            actionUrl: $actionUrl,
+            actionLabel: 'Review request',
+            meta: [
+                'employee_name' => $employeeName,
+                'request_id' => $requestId,
+            ],
+            mailSubject: 'New device reset request',
+        );
+    }
+
+    public static function deviceResetApproved(string $employeeName, string $deadlineLabel, string $actionUrl): self
+    {
+        return new self(
+            type: 'device-reset.approved',
+            title: 'Device reset approved',
+            message: "{$employeeName}, your previous device has been unlinked. Register your new phone before {$deadlineLabel} — after that the approval expires and you will need to ask again.",
+            actionUrl: $actionUrl,
+            actionLabel: 'Register my device',
+            meta: [
+                'employee_name' => $employeeName,
+                'deadline' => $deadlineLabel,
+            ],
+            mailSubject: 'Your EAPMS device reset was approved',
+        );
+    }
+
+    public static function deviceResetRejected(string $employeeName, ?string $reason, string $actionUrl): self
+    {
+        return new self(
+            type: 'device-reset.rejected',
+            title: 'Device reset not approved',
+            message: trim("{$employeeName}, your device reset request was not approved. ".($reason ?? '')),
+            actionUrl: $actionUrl,
+            actionLabel: 'Open My Device',
+            meta: [
+                'employee_name' => $employeeName,
+                'reason' => $reason,
+            ],
+            mailSubject: 'Your EAPMS device reset request',
+        );
+    }
+
+    /**
      * A sign-counter regression means two authenticators are signing with one key. The device
      * is revoked automatically; this tells an Admin why.
      */

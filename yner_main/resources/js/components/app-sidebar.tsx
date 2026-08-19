@@ -14,6 +14,7 @@ import {
     MapPin,
     MapPinned,
     Moon,
+    RefreshCw,
     ScanLine,
     Settings,
     Smartphone,
@@ -164,13 +165,21 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
             label: 'Devices',
             items: [
                 {
-                    // Always visible: every user manages their own phone here, unlike the
-                    // biometric terminals below, which are Admin-only infrastructure.
+                    // Always visible: every user manages their own linked phone here, unlike
+                    // the biometric terminals below, which are Admin-only infrastructure.
+                    // Singular on purpose — an account is linked to exactly one device.
                     href: route('devices.index'),
-                    label: 'My Devices',
+                    label: 'My Device',
                     icon: Smartphone,
                     active: route().current('devices.*'),
                     show: true,
+                },
+                {
+                    href: route('device-reset-requests.index'),
+                    label: 'Device Resets',
+                    icon: RefreshCw,
+                    active: route().current('device-reset-requests.*'),
+                    show: can.reviewDeviceResets,
                 },
                 {
                     href: route('mobile-check-ins.index'),

@@ -10,6 +10,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { describeWebAuthnError, useWebAuthn, useWebAuthnSupport } from '@/components/webauthn/use-webauthn';
 import { WebAuthnUnavailable } from '@/components/webauthn/webauthn-unavailable';
 import AppLayout from '@/layouts/app-layout';
+import { deviceTokenHeader } from '@/lib/device-token';
 
 interface CheckInShowProps {
     employee: { name: string; employee_code: string } | null;
@@ -17,9 +18,10 @@ interface CheckInShowProps {
     location?: { name: string; address: string | null; radius_meters: number } | null;
     schedule?: { name: string; start_time: string; end_time: string } | null;
     windows?: { in: { opens: string; closes: string }; out: { opens: string; closes: string } } | null;
-    activeDevices?: number;
+    // The one device linked to this account, or null. The distinction matters: "no device"
+    // means offer registration, "a device, but not this one" means offer a reset request.
+    linkedDevice?: { name: string; rp_id_matches: boolean } | null;
     maxAccuracyMeters?: number;
-    webauthnRequired: boolean;
     actions?: { create: boolean };
 }
 
@@ -31,9 +33,8 @@ export default function CheckInShow({
     location,
     schedule,
     windows,
-    activeDevices = 0,
+    linkedDevice = null,
     maxAccuracyMeters = 100,
-    webauthnRequired,
     actions,
 }: CheckInShowProps) {
     const support = useWebAuthnSupport();
@@ -73,11 +74,9 @@ export default function CheckInShow({
                 return;
             }
 
-            let credential = null;
-
-            if (webauthnRequired) {
-                credential = await authenticate(route('check-in.assertion-options'));
-            }
+            // Never conditional. The server refuses any check-in it cannot tie to the one
+            // device linked to this account, so an unsigned request is a wasted round trip.
+            const credential = await authenticate(route('check-in.assertion-options'));
 
             const response = await fetch(route('check-in.store'), {
                 method: 'POST',
@@ -87,6 +86,9 @@ export default function CheckInShow({
                     'X-Requested-With': 'XMLHttpRequest',
                     'X-CSRF-TOKEN':
                         document.querySelector<HTMLMetaElement>('meta[name="csrf-token"]')?.content ?? '',
+                    // Proof this is the same handset that was enrolled, mirrored from
+                    // localStorage in case the httpOnly cookie has been cleared.
+                    ...deviceTokenHeader(),
                 },
                 credentials: 'same-origin',
                 body: JSON.stringify({ direction, ...fix, credential }),
@@ -138,7 +140,7 @@ export default function CheckInShow({
         );
     }
 
-    const needsDevice = webauthnRequired && activeDevices === 0;
+    const needsDevice = linkedDevice === null;
     const canPunch = actions?.create && support === 'supported' && !needsDevice;
 
     return (
@@ -162,13 +164,27 @@ export default function CheckInShow({
                 <div className="mt-6 flex gap-3 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
                     <Smartphone className="mt-0.5 h-5 w-5 shrink-0 text-blue-600" />
                     <div>
-                        <p className="font-semibold">Register this phone first</p>
+                        <p className="font-semibold">Link a device first</p>
                         <p className="mt-1">
-                            Check-in requires a registered device so we can confirm it is really you.{' '}
+                            Check-in requires the one phone linked to your account, so we can confirm it is
+                            really you.{' '}
                             <Link href={route('devices.index')} className="font-semibold underline">
-                                Register this device
+                                Link this device
                             </Link>
                             , then come back here.
+                        </p>
+                    </div>
+                </div>
+            )}
+
+            {linkedDevice && !linkedDevice.rp_id_matches && (
+                <div className="mt-6 flex gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                    <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+                    <div>
+                        <p className="font-semibold">Your linked device was registered on another domain</p>
+                        <p className="mt-1">
+                            "{linkedDevice.name}" cannot produce a valid signature here. Ask an administrator
+                            for a device reset so you can link it again.
                         </p>
                     </div>
                 </div>

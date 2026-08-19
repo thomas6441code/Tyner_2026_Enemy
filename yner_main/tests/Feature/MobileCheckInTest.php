@@ -18,6 +18,7 @@ use App\Models\User;
 use App\Models\UserDevice;
 use App\Models\WorkLocation;
 use App\Models\WorkSchedule;
+use App\Services\DeviceTokenService;
 use App\Services\WebAuthn\CredentialSourceRepository;
 use App\Services\WebAuthnService;
 use Database\Seeders\RoleSeeder;
@@ -46,6 +47,15 @@ class MobileCheckInTest extends TestCase
 
     private FakeWebAuthnService $webauthn;
 
+    /**
+     * The plaintext binding token of the fixture device, mirrored on every request.
+     *
+     * Every gate after 2b assumes the handset proved itself, so without this the whole suite
+     * would stop at DeviceMismatch and never reach the geofence or schedule rules it exists
+     * to test.
+     */
+    private ?string $deviceToken = null;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -53,7 +63,6 @@ class MobileCheckInTest extends TestCase
         $this->seed(RoleSeeder::class);
 
         config()->set('webauthn.rp_id', 'eapms.test');
-        config()->set('webauthn.require', true);
 
         $this->webauthn = new FakeWebAuthnService(app(CredentialSourceRepository::class));
         $this->app->instance(WebAuthnService::class, $this->webauthn);
@@ -107,6 +116,9 @@ class MobileCheckInTest extends TestCase
             'work_location_id' => $this->location()->id,
         ]);
 
+        $this->deviceToken = null;
+        $this->webauthn->device = null;
+
         if ($withDevice) {
             $this->webauthn->device = UserDevice::create([
                 'user_id' => $user->id,
@@ -117,6 +129,8 @@ class MobileCheckInTest extends TestCase
                 'device_name' => 'Test Phone',
                 'status' => DeviceStatus::Active,
             ]);
+
+            $this->deviceToken = app(DeviceTokenService::class)->issue($this->webauthn->device);
         }
 
         return $user->fresh();
@@ -138,7 +152,9 @@ class MobileCheckInTest extends TestCase
 
     private function checkIn(User $user, array $overrides = [])
     {
-        return $this->actingAs($user)->postJson('/check-in', $this->payload($overrides));
+        return $this->actingAs($user)
+            ->withHeaders($this->deviceToken ? [config('device.token_header') => $this->deviceToken] : [])
+            ->postJson('/check-in', $this->payload($overrides));
     }
 
     private function assertRejected($response, CheckInRejection $reason): void
@@ -256,7 +272,7 @@ class MobileCheckInTest extends TestCase
         $this->actingAs($user)->postJson('/check-in', $this->payload())->assertForbidden();
     }
 
-    public function test_a_check_in_without_a_valid_assertion_is_rejected_when_webauthn_is_required(): void
+    public function test_a_check_in_without_a_valid_assertion_is_rejected(): void
     {
         $user = $this->employeeUser();
         $this->webauthn->shouldFail = true;
@@ -273,6 +289,95 @@ class MobileCheckInTest extends TestCase
         $this->webauthn->shouldFail = true;
 
         $this->assertRejected($this->checkIn($user, ['credential' => null]), CheckInRejection::WebauthnFailed);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | The device binding: one account, one device
+    |--------------------------------------------------------------------------
+    */
+
+    public function test_an_account_with_no_linked_device_cannot_check_in(): void
+    {
+        $user = $this->employeeUser(withDevice: false);
+
+        // The assertion is faked as succeeding against a device that does not exist, so this
+        // isolates gate 2b from gate 2: even a "verified" request is refused when the account
+        // holds no binding.
+        $this->webauthn->device = UserDevice::create([
+            'user_id' => User::factory()->create()->id,
+            'credential_id' => 'orphan-cred',
+            'public_key' => '{}',
+            'rp_id' => 'eapms.test',
+            'device_name' => 'Someone Else Phone',
+        ]);
+
+        $this->assertRejected($this->checkIn($user), CheckInRejection::NoLinkedDevice);
+        $this->assertSame(0, RawAttendanceLog::count());
+    }
+
+    public function test_an_assertion_from_a_device_that_is_not_the_bound_one_is_rejected(): void
+    {
+        $user = $this->employeeUser();
+
+        // A second credential on the same account: impossible to create through the app, but
+        // exactly what a leaked or replayed credential would look like arriving here.
+        $this->webauthn->device = UserDevice::create([
+            'user_id' => $user->id,
+            'credential_id' => 'stale-cred',
+            'public_key' => '{}',
+            'rp_id' => 'eapms.test',
+            'device_name' => 'Old Phone',
+            'status' => DeviceStatus::Revoked,
+        ]);
+
+        $this->assertRejected($this->checkIn($user), CheckInRejection::DeviceMismatch);
+        $this->assertSame(0, RawAttendanceLog::count());
+
+        // Not an ordinary refusal: a mismatch is a plausible account-sharing attempt, so it is
+        // flagged for an Admin rather than filed away silently.
+        $this->assertTrue(MobileCheckIn::first()->flagged);
+    }
+
+    public function test_a_check_in_without_the_device_binding_token_is_rejected(): void
+    {
+        $user = $this->employeeUser();
+
+        // The credential verifies and belongs to the bound device — this is the case WebAuthn
+        // alone cannot catch, where the passkey has reached a second handset.
+        $this->deviceToken = null;
+
+        $this->assertRejected($this->checkIn($user), CheckInRejection::DeviceMismatch);
+        $this->assertSame(0, RawAttendanceLog::count());
+    }
+
+    public function test_a_binding_token_belonging_to_another_device_is_rejected(): void
+    {
+        $user = $this->employeeUser();
+
+        $other = UserDevice::create([
+            'user_id' => User::factory()->create()->id,
+            'credential_id' => 'other-cred',
+            'public_key' => '{}',
+            'rp_id' => 'eapms.test',
+            'device_name' => 'Colleague Phone',
+        ]);
+
+        $this->deviceToken = app(DeviceTokenService::class)->issue($other);
+
+        $this->assertRejected($this->checkIn($user), CheckInRejection::DeviceMismatch);
+    }
+
+    public function test_a_revoked_device_holds_no_binding_slot(): void
+    {
+        $user = $this->employeeUser();
+
+        $this->webauthn->device->revoke('Testing.');
+
+        // Revocation nulls active_user_id, so the account is back to having no linked device
+        // at all rather than a mismatched one.
+        $this->assertNull(UserDevice::boundTo($user->id));
+        $this->assertRejected($this->checkIn($user), CheckInRejection::NoLinkedDevice);
     }
 
     public function test_a_coarse_gps_fix_is_rejected(): void

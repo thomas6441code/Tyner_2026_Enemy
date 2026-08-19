@@ -7,6 +7,7 @@ use App\Models\Employee;
 use App\Models\User;
 use App\Models\WorkLocation;
 use App\Models\WorkSchedule;
+use App\Services\EmployeeCodeGenerator;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -14,6 +15,8 @@ use Inertia\Response;
 
 class EmployeeController extends Controller
 {
+    public function __construct(private readonly EmployeeCodeGenerator $codes) {}
+
     /**
      * Display a listing of the resource.
      */
@@ -68,9 +71,10 @@ class EmployeeController extends Controller
 
         $validated = $this->validateEmployee($request);
 
-        Employee::create($validated);
+        $employee = $this->codes->create($validated);
 
-        return redirect()->route('employees.index')->with('status', 'Employee created.');
+        return redirect()->route('employees.index')
+            ->with('status', "Employee created as {$employee->employee_code}.");
     }
 
     /**
@@ -105,7 +109,10 @@ class EmployeeController extends Controller
     private function validateEmployee(Request $request, ?Employee $employee = null): array
     {
         return $request->validate([
-            'employee_code' => ['required', 'string', 'max:50', 'unique:employees,employee_code,'.($employee?->id)],
+            // `employee_code` is deliberately absent, on create and on update alike. On create
+            // the server allocates it; on update it is immutable, because device enrolments,
+            // exported reports and three months of attendance history all refer to it by
+            // value. Renaming the key would orphan every one of them.
             'first_name' => ['required', 'string', 'max:255'],
             'last_name' => ['required', 'string', 'max:255'],
             'phone' => ['nullable', 'string', 'max:50'],
@@ -129,6 +136,10 @@ class EmployeeController extends Controller
     private function formData(?Employee $employee = null): array
     {
         return [
+            // Display only, and never sent back as an input. Under concurrency the code that
+            // actually lands can differ from this one — the form says what you are about to
+            // create, the server decides what you did create.
+            'nextEmployeeCode' => $this->codes->peek(),
             'departments' => Department::orderBy('name')->get(['id', 'name']),
             'workSchedules' => WorkSchedule::orderBy('name')->get(['id', 'name']),
             'workLocations' => WorkLocation::where('is_active', true)->orderBy('name')->get(['id', 'name']),

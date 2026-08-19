@@ -15,7 +15,6 @@ interface UserOption {
 }
 
 interface EmployeeFormData {
-    employee_code: string;
     first_name: string;
     last_name: string;
     phone: string;
@@ -35,6 +34,9 @@ interface EmployeeFormProps {
     workSchedules: Option[];
     workLocations: Option[];
     unlinkedUsers: UserOption[];
+    /** The existing code when editing; the code about to be assigned when creating. */
+    employeeCode: string;
+    isEdit: boolean;
 }
 
 const NONE = '__none__';
@@ -47,21 +49,30 @@ export function EmployeeForm({
     workSchedules,
     workLocations,
     unlinkedUsers,
+    employeeCode,
+    isEdit,
 }: EmployeeFormProps) {
     return (
         <div className="flex flex-col gap-4">
             <div className="grid grid-cols-2 gap-4">
-                <div>
+<div>
+                    {/*
+                      Read-only in both modes, and not part of the form payload at all. On
+                      create the server allocates the next code in sequence; on edit the code
+                      is immutable, because device enrolments and every past attendance record
+                      refer to the employee by this value.
+                    */}
                     <Label htmlFor="employee_code">Employee Code</Label>
                     <Input
                         id="employee_code"
-                        name="employee_code"
-                        value={data.employee_code}
-                        className="mt-1"
-                        autoFocus
-                        onChange={(e) => setData('employee_code', e.target.value)}
+                        value={employeeCode}
+                        className="mt-1 bg-muted text-muted-foreground"
+                        readOnly
+                        tabIndex={-1}
                     />
-                    <InputError message={errors.employee_code} className="mt-2" />
+                    <p className="mt-1 text-xs text-muted-foreground">
+                        {isEdit ? 'Assigned when this employee was created.' : 'Assigned automatically on save.'}
+                    </p>
                 </div>
 
                 <div>

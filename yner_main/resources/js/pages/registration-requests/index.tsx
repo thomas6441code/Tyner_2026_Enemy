@@ -39,7 +39,12 @@ interface Props {
         links: { url: string | null; label: string; active: boolean }[];
     };
     stats: { pending: number; approved: number; rejected: number };
-    formData: { departments: Option[]; workSchedules: Option[]; workLocations: Option[] };
+    formData: {
+        nextEmployeeCode: string;
+        departments: Option[];
+        workSchedules: Option[];
+        workLocations: Option[];
+    };
     status?: string;
     invitationUrl?: string;
     invitationEmail?: string | null;
@@ -193,6 +198,7 @@ export default function RegistrationRequestsIndex({
             {approving && (
                 <RegistrationApproveDialog
                     record={approving}
+                    nextEmployeeCode={formData.nextEmployeeCode}
                     departments={formData.departments}
                     workSchedules={formData.workSchedules}
                     workLocations={formData.workLocations}

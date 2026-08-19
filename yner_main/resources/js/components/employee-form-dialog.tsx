@@ -37,6 +37,7 @@ interface EmployeeFormDialogProps {
     workSchedules: Option[];
     workLocations: Option[];
     unlinkedUsers: UserOption[];
+    nextEmployeeCode: string;
     onClose: () => void;
 }
 
@@ -46,11 +47,11 @@ export function EmployeeFormDialog({
     workSchedules,
     workLocations,
     unlinkedUsers,
+    nextEmployeeCode,
     onClose,
 }: EmployeeFormDialogProps) {
     const isEdit = !!record;
     const { data, setData, post, put, processing, errors } = useForm({
-        employee_code: record?.employee_code ?? '',
         first_name: record?.first_name ?? '',
         last_name: record?.last_name ?? '',
         phone: record?.phone ?? '',
@@ -87,6 +88,8 @@ export function EmployeeFormDialog({
                         workSchedules={workSchedules}
                         workLocations={workLocations}
                         unlinkedUsers={unlinkedUsers}
+                        employeeCode={record?.employee_code ?? nextEmployeeCode}
+                        isEdit={isEdit}
                     />
                     <DialogFooter className="gap-2">
                         <Button type="button" variant="outline" onClick={onClose}>

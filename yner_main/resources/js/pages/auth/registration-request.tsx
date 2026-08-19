@@ -98,7 +98,7 @@ export default function RegistrationRequest({ departments }: { departments: Depa
                     <InputError message={errors.phone} className="mt-2" />
                 </div>
 
-                <div>
+                <div className='hidden'>
                     <Label htmlFor="department_id">Department (optional)</Label>
                     <select
                         id="department_id"

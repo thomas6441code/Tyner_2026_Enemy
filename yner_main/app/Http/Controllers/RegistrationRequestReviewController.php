@@ -11,12 +11,12 @@ use App\Models\RegistrationRequest;
 use App\Models\WorkLocation;
 use App\Models\WorkSchedule;
 use App\Notifications\SystemNotification;
+use App\Services\EmployeeCodeGenerator;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
-use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
 use Throwable;
@@ -29,6 +29,8 @@ use Throwable;
  */
 class RegistrationRequestReviewController extends Controller
 {
+    public function __construct(private readonly EmployeeCodeGenerator $codes) {}
+
     public function index(Request $request): Response
     {
         $this->authorize('viewAny', RegistrationRequest::class);
@@ -64,6 +66,9 @@ class RegistrationRequestReviewController extends Controller
                 'rejected' => RegistrationRequest::where('status', RegistrationStatus::Rejected)->count(),
             ],
             'formData' => [
+                // Shown in the approve dialog so the reviewer knows which code they are about
+                // to mint. Display only — the server allocates the real one on approval.
+                'nextEmployeeCode' => $this->codes->peek(),
                 'departments' => Department::orderBy('name')->get(['id', 'name']),
                 'workSchedules' => WorkSchedule::orderBy('name')->get(['id', 'name']),
                 'workLocations' => WorkLocation::where('is_active', true)->orderBy('name')->get(['id', 'name']),
@@ -86,7 +91,9 @@ class RegistrationRequestReviewController extends Controller
         $this->authorize('review', $registrationRequest);
 
         $validated = $request->validate([
-            'employee_code' => ['required', 'string', 'max:50', Rule::unique('employees', 'employee_code')],
+            // No `employee_code`: the server allocates it. Asking a reviewer to invent a unique
+            // key mid-approval is how duplicates and typos get in, and a rejected approval at
+            // this point has already half-happened in the reviewer's head.
             'department_id' => ['required', 'integer', 'exists:departments,id'],
             'work_schedule_id' => ['required', 'integer', 'exists:work_schedules,id'],
             // Optional, unlike the others: an employee with no location of their own inherits
@@ -96,11 +103,10 @@ class RegistrationRequestReviewController extends Controller
         ]);
 
         $result = DB::transaction(function () use ($request, $registrationRequest, $validated) {
-            $employee = Employee::create([
+            $employee = $this->codes->create([
                 'department_id' => $validated['department_id'],
                 'work_schedule_id' => $validated['work_schedule_id'],
                 'work_location_id' => $validated['work_location_id'] ?? null,
-                'employee_code' => $validated['employee_code'],
                 'first_name' => $registrationRequest->first_name,
                 'last_name' => $registrationRequest->last_name,
                 'phone' => $registrationRequest->phone,

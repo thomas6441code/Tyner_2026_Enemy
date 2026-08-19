@@ -23,6 +23,7 @@ interface RegistrationRow {
 
 interface Props {
     record: RegistrationRow;
+    nextEmployeeCode: string;
     departments: Option[];
     workSchedules: Option[];
     workLocations: Option[];
@@ -34,9 +35,15 @@ interface Props {
  * department, work schedule and hire date. The attendance engine depends on all of them,
  * which is why the Employee record is created here rather than at activation.
  */
-export function RegistrationApproveDialog({ record, departments, workSchedules, workLocations, onClose }: Props) {
+export function RegistrationApproveDialog({
+    record,
+    nextEmployeeCode,
+    departments,
+    workSchedules,
+    workLocations,
+    onClose,
+}: Props) {
     const { data, setData, put, processing, errors } = useForm({
-        employee_code: '',
         department_id: '',
         work_schedule_id: '',
         work_location_id: '',
@@ -64,22 +71,31 @@ export function RegistrationApproveDialog({ record, departments, workSchedules, 
                     </DialogHeader>
 
                     <div className="mt-4 flex flex-col gap-4">
-                        <div>
+<div>
+                            {/*
+                              Shown, not asked for. The server allocates the next code in
+                              sequence on approval — a reviewer inventing a unique key mid-form
+                              is how duplicates and typos got in, and the rejection landed at
+                              the very end of an approval they had already committed to.
+                            */}
                             <Label htmlFor="employee_code">Employee code</Label>
                             <Input
                                 id="employee_code"
-                                value={data.employee_code}
-                                className="mt-1"
-                                autoFocus
-                                onChange={(e) => setData('employee_code', e.target.value)}
+                                value={nextEmployeeCode}
+                                className="mt-1 bg-muted text-muted-foreground"
+                                readOnly
+                                tabIndex={-1}
                             />
-                            <InputError message={errors.employee_code} className="mt-2" />
+                            <p className="mt-1 text-xs text-muted-foreground">
+                                Assigned automatically when you approve.
+                            </p>
                         </div>
 
                         <div>
                             <Label htmlFor="department_id">Department</Label>
                             <select
                                 id="department_id"
+                                autoFocus
                                 value={data.department_id}
                                 onChange={(e) => setData('department_id', e.target.value)}
                                 className="mt-1 flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm"

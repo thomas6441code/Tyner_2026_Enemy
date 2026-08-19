@@ -211,7 +211,6 @@ class WorkLocationTest extends TestCase
 
         $this->actingAs($this->userWithRole(RoleName::Admin->value))
             ->post('/employees', [
-                'employee_code' => 'E001',
                 'first_name' => 'Amina',
                 'last_name' => 'Juma',
                 'status' => 'active',
@@ -219,8 +218,10 @@ class WorkLocationTest extends TestCase
             ])
             ->assertRedirect('/employees');
 
+        // The code is server-allocated; this test is about the location assignment, so it
+        // matches on the name it did supply.
         $this->assertDatabaseHas('employees', [
-            'employee_code' => 'E001',
+            'first_name' => 'Amina',
             'work_location_id' => $location->id,
         ]);
     }

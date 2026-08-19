@@ -26,14 +26,56 @@ class EmployeeTest extends TestCase
         $admin->assignRole(RoleName::Admin->value);
 
         $response = $this->actingAs($admin)->post('/employees', [
-            'employee_code' => 'EMP-0001',
             'first_name' => 'Jane',
             'last_name' => 'Doe',
             'status' => 'active',
         ]);
 
+        // No employee_code in the payload — the form does not collect one and the server does
+        // not accept one.
         $response->assertRedirect('/employees');
         $this->assertDatabaseHas('employees', ['employee_code' => 'EMP-0001']);
+    }
+
+    public function test_a_client_supplied_employee_code_is_ignored(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(RoleName::Admin->value);
+
+        Employee::create(['employee_code' => 'EMP-0001', 'first_name' => 'A', 'last_name' => 'B', 'status' => 'active']);
+
+        // A crafted request must not be able to choose the key that device enrolments and
+        // exported reports are joined on — nor to collide with an existing one.
+        $this->actingAs($admin)->post('/employees', [
+            'employee_code' => 'EMP-0001',
+            'first_name' => 'Jane',
+            'last_name' => 'Doe',
+            'status' => 'active',
+        ])->assertRedirect('/employees');
+
+        $this->assertSame('EMP-0002', Employee::where('first_name', 'Jane')->sole()->employee_code);
+    }
+
+    public function test_the_employee_code_cannot_be_changed_after_creation(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(RoleName::Admin->value);
+
+        $employee = Employee::create([
+            'employee_code' => 'EMP-0001', 'first_name' => 'Jane',
+            'last_name' => 'Doe', 'status' => 'active',
+        ]);
+
+        // Immutable on purpose: device enrolments, exported reports and every past attendance
+        // row refer to the employee by this value.
+        $this->actingAs($admin)->put("/employees/{$employee->id}", [
+            'employee_code' => 'EMP-9999',
+            'first_name' => 'Jane',
+            'last_name' => 'Doe',
+            'status' => 'active',
+        ])->assertRedirect('/employees');
+
+        $this->assertSame('EMP-0001', $employee->fresh()->employee_code);
     }
 
     public function test_hr_officer_can_list_employees(): void

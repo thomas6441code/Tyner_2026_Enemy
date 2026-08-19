@@ -54,6 +54,7 @@ interface EmployeesIndexProps {
     workSchedules: Option[];
     workLocations: Option[];
     unlinkedUsers: UserOption[];
+    nextEmployeeCode: string;
     stats: { total: number; active: number; inactive: number; unlinked: number };
     actions: { create: boolean; update: boolean; delete: boolean };
     status?: string;
@@ -70,6 +71,7 @@ export default function EmployeesIndex({
     workSchedules,
     workLocations,
     unlinkedUsers,
+    nextEmployeeCode,
     stats,
     actions,
     status,
@@ -199,6 +201,7 @@ export default function EmployeesIndex({
                     workSchedules={workSchedules}
                     workLocations={workLocations}
                     unlinkedUsers={unlinkedUsers}
+                    nextEmployeeCode={nextEmployeeCode}
                     onClose={() => setDialog(null)}
                 />
             )}

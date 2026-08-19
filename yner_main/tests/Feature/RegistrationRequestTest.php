@@ -57,7 +57,6 @@ class RegistrationRequestTest extends TestCase
         // firstOrCreate so a test may build the payload more than once without colliding
         // on the unique department/schedule names.
         return array_merge([
-            'employee_code' => 'EMP-0100',
             'department_id' => Department::firstOrCreate(['name' => 'ICT'])->id,
             'work_schedule_id' => WorkSchedule::firstOrCreate(
                 ['name' => 'Day'],
@@ -209,7 +208,8 @@ class RegistrationRequestTest extends TestCase
         // Inactive until activation, so AttendanceCalculator generates no phantom Absents.
         $this->assertSame('inactive', $employee->status);
         $this->assertNull($employee->user_id);
-        $this->assertSame('EMP-0100', $employee->employee_code);
+        // Allocated by the server, not supplied by the reviewer: first employee, first code.
+        $this->assertSame('EMP-0001', $employee->employee_code);
 
         $request->refresh();
         $this->assertSame(RegistrationStatus::Approved, $request->status);
@@ -223,7 +223,7 @@ class RegistrationRequestTest extends TestCase
         $this->assertDatabaseHas('audit_logs', ['action' => 'registration.approved']);
     }
 
-    public function test_approval_rejects_a_duplicate_employee_code(): void
+    public function test_approval_continues_the_sequence_and_ignores_any_supplied_code(): void
     {
         Employee::create([
             'employee_code' => 'EMP-0100', 'first_name' => 'Existing',
@@ -232,11 +232,18 @@ class RegistrationRequestTest extends TestCase
 
         $request = $this->pendingRequest();
 
+        // A duplicate is no longer something a reviewer can even ask for. Sending one anyway —
+        // a crafted request, or a stale client — must be ignored rather than honoured, which is
+        // the whole reason the field left the validated payload.
         $this->actingAs($this->userWithRole(RoleName::Admin))
-            ->put(route('registration-requests.approve', $request), $this->approvalPayload())
-            ->assertSessionHasErrors('employee_code');
+            ->put(route('registration-requests.approve', $request), $this->approvalPayload([
+                'employee_code' => 'EMP-0100',
+            ]))
+            ->assertRedirect(route('registration-requests.index'));
 
-        $this->assertDatabaseCount('account_invitations', 0);
+        $employee = Employee::where('first_name', 'Thomas')->sole();
+        $this->assertSame('EMP-0101', $employee->employee_code);
+        $this->assertDatabaseCount('account_invitations', 1);
     }
 
     public function test_an_already_approved_request_cannot_be_approved_again(): void
@@ -248,9 +255,7 @@ class RegistrationRequestTest extends TestCase
             ->put(route('registration-requests.approve', $request), $this->approvalPayload());
 
         $this->actingAs($admin)
-            ->put(route('registration-requests.approve', $request), $this->approvalPayload([
-                'employee_code' => 'EMP-0200',
-            ]))
+            ->put(route('registration-requests.approve', $request), $this->approvalPayload())
             ->assertForbidden();
 
         $this->assertDatabaseCount('account_invitations', 1);

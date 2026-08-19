@@ -14,10 +14,12 @@ use App\Notifications\SystemNotification;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
+use Throwable;
 
 /**
  * Admin/HR review queue for public registration requests.
@@ -68,6 +70,7 @@ class RegistrationRequestReviewController extends Controller
             ],
             'status' => session('status'),
             'invitationUrl' => session('invitationUrl'),
+            'invitationEmail' => session('invitationEmail'),
         ]);
     }
 
@@ -128,18 +131,20 @@ class RegistrationRequestReviewController extends Controller
 
         $this->audit($request, $registrationRequest, 'registration.approved', null);
 
-        // No User exists yet, so this is an on-demand mail notification.
-        Notification::route('mail', $registrationRequest->email)
-            ->notify(SystemNotification::registrationRequestApproved(
-                $registrationRequest->fullName(),
-                $activationUrl,
-            ));
+        $emailed = $this->mailActivationLink(
+            $registrationRequest->email,
+            $registrationRequest->fullName(),
+            $activationUrl,
+        );
 
         // MAIL_MAILER is `log` in dev/staging, so the link must also be surfaced in the UI.
         // This is the only moment the plaintext token exists — it is not recoverable later.
         return redirect()->route('registration-requests.index')
-            ->with('status', 'Registration approved. Share the activation link below.')
-            ->with('invitationUrl', $activationUrl);
+            ->with('status', $emailed
+                ? "Registration approved. The activation link was emailed to {$registrationRequest->email}."
+                : "Registration approved, but the activation link could not be emailed to {$registrationRequest->email}. Share the link below directly.")
+            ->with('invitationUrl', $activationUrl)
+            ->with('invitationEmail', $emailed ? $registrationRequest->email : null);
     }
 
     /**
@@ -161,14 +166,48 @@ class RegistrationRequestReviewController extends Controller
 
         $this->audit($request, $registrationRequest, 'registration.rejected', $validated['review_note']);
 
-        Notification::route('mail', $registrationRequest->email)
-            ->notify(SystemNotification::registrationRequestRejected(
-                $registrationRequest->fullName(),
-                $validated['review_note'],
-            ));
+        try {
+            Notification::route('mail', $registrationRequest->email)
+                ->notify(SystemNotification::registrationRequestRejected(
+                    $registrationRequest->fullName(),
+                    $validated['review_note'],
+                ));
+        } catch (Throwable $e) {
+            // The decision is already committed; a mail outage must not turn it into a 500.
+            Log::warning('Rejection notice could not be delivered.', [
+                'registration_request_id' => $registrationRequest->id,
+                'error' => $e->getMessage(),
+            ]);
+        }
 
         return redirect()->route('registration-requests.index')
             ->with('status', 'Registration request rejected.');
+    }
+
+    /**
+     * Deliver the activation link to the applicant, reporting whether it got out.
+     *
+     * No User row exists yet, so this is an on-demand mail notification. Failure is
+     * swallowed deliberately: the employee, the invitation and the audit entry are
+     * already committed, and throwing here would surface as a 500 on a completed
+     * approval — leaving the reviewer with neither confirmation nor the link. The
+     * caller falls back to handing the link over manually instead.
+     */
+    private function mailActivationLink(string $email, string $applicantName, string $activationUrl): bool
+    {
+        try {
+            Notification::route('mail', $email)
+                ->notify(SystemNotification::registrationRequestApproved($applicantName, $activationUrl));
+
+            return true;
+        } catch (Throwable $e) {
+            Log::warning('Activation link could not be emailed.', [
+                'email' => $email,
+                'error' => $e->getMessage(),
+            ]);
+
+            return false;
+        }
     }
 
     private function audit(Request $request, RegistrationRequest $registrationRequest, string $action, ?string $note): void

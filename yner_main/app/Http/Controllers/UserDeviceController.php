@@ -70,7 +70,7 @@ class UserDeviceController extends Controller
                 'mine' => UserDevice::where('user_id', $user->id)
                     ->where('status', DeviceStatus::Active)->count(),
             ],
-            'can' => [
+            'actions' => [
                 'register' => $user->can('create', UserDevice::class),
             ],
             'isAdmin' => $isAdmin,

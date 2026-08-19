@@ -36,6 +36,7 @@ interface Props {
     stats: { pending: number; used: number; expired: number; revoked: number };
     status?: string;
     invitationUrl?: string;
+    invitationEmail?: string | null;
 }
 
 const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'destructive' | 'success' | 'outline'> = {
@@ -45,7 +46,13 @@ const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'destructive' | '
     revoked: 'destructive',
 };
 
-export default function AccountInvitationsIndex({ invitations, stats, status, invitationUrl }: Props) {
+export default function AccountInvitationsIndex({
+    invitations,
+    stats,
+    status,
+    invitationUrl,
+    invitationEmail,
+}: Props) {
     const [revoking, setRevoking] = useState<InvitationRow | null>(null);
     const [linkUrl, setLinkUrl] = useState<string | null>(null);
 
@@ -185,7 +192,9 @@ export default function AccountInvitationsIndex({ invitations, stats, status, in
                 />
             )}
 
-            {linkUrl && <InvitationLinkDialog url={linkUrl} onClose={() => setLinkUrl(null)} />}
+            {linkUrl && (
+                <InvitationLinkDialog url={linkUrl} emailedTo={invitationEmail} onClose={() => setLinkUrl(null)} />
+            )}
         </AppLayout>
     );
 }

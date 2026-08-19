@@ -9,9 +9,11 @@ use App\Notifications\SystemNotification;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Notification;
 use Inertia\Inertia;
 use Inertia\Response;
+use Throwable;
 
 /**
  * Admin/HR management of issued activation links.
@@ -57,6 +59,7 @@ class AccountInvitationController extends Controller
             ],
             'status' => session('status'),
             'invitationUrl' => session('invitationUrl'),
+            'invitationEmail' => session('invitationEmail'),
         ]);
     }
 
@@ -85,15 +88,31 @@ class AccountInvitationController extends Controller
 
         $this->audit($request, $result['invitation'], 'invitation.resent');
 
-        Notification::route('mail', $accountInvitation->email)
-            ->notify(SystemNotification::registrationRequestApproved(
-                $accountInvitation->employee?->fullName() ?? 'Applicant',
-                $activationUrl,
-            ));
+        $emailed = true;
+
+        try {
+            Notification::route('mail', $accountInvitation->email)
+                ->notify(SystemNotification::registrationRequestApproved(
+                    $accountInvitation->employee?->fullName() ?? 'Applicant',
+                    $activationUrl,
+                ));
+        } catch (Throwable $e) {
+            // The replacement link is already minted and the old one revoked; a mail
+            // failure must not hide it behind a 500. Fall back to manual delivery.
+            $emailed = false;
+
+            Log::warning('Activation link could not be emailed.', [
+                'email' => $accountInvitation->email,
+                'error' => $e->getMessage(),
+            ]);
+        }
 
         return redirect()->route('account-invitations.index')
-            ->with('status', 'A new activation link was issued.')
-            ->with('invitationUrl', $activationUrl);
+            ->with('status', $emailed
+                ? "A new activation link was issued and emailed to {$accountInvitation->email}."
+                : "A new activation link was issued, but it could not be emailed to {$accountInvitation->email}. Share the link below directly.")
+            ->with('invitationUrl', $activationUrl)
+            ->with('invitationEmail', $emailed ? $accountInvitation->email : null);
     }
 
     /**

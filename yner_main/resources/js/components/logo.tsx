@@ -1,7 +1,7 @@
 import { cn } from '@/lib/utils';
 
 /**
- * The "tyner" wordmark — a rounded lowercase logotype with the three signature dots
+ * The "EAPMS" wordmark — a rounded uppercase logotype with the three signature dots
  * (cyan / sky / blue) sitting above the word. Sizes with the font-size of `className`
  * (everything inside is em-based), and inherits the current text color for the letters.
  */
@@ -9,7 +9,7 @@ export function Logo({ className }: { className?: string }) {
     return (
         <span
             className={cn(
-                'relative inline-block select-none font-bold lowercase leading-none tracking-tight text-foreground',
+                'relative inline-block select-none font-bold uppercase leading-none tracking-tight text-foreground',
                 className,
             )}
             style={{ fontFamily: '"Quicksand", "Inter", sans-serif' }}
@@ -19,7 +19,7 @@ export function Logo({ className }: { className?: string }) {
                 <span className="h-[0.2em] w-[0.2em] rounded-full bg-sky-500" />
                 <span className="h-[0.2em] w-[0.2em] rounded-full bg-blue-600" />
             </span>
-            tyner
+            eapms
         </span>
     );
 }

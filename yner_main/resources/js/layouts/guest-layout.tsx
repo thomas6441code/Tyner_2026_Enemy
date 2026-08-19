@@ -189,7 +189,7 @@ export default function GuestLayout({ children, slides = defaultSlides }: PropsW
                 </div>
 
                 <p className="text-center text-xs text-muted-foreground">
-                    © {new Date().getFullYear()} Tyner EAPMS. All rights reserved.
+                    © {new Date().getFullYear()} EAPMS. All rights reserved.
                 </p>
             </div>
 

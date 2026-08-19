@@ -22,7 +22,7 @@
         })();
     </script>
 
-    <title inertia>{{ config('app.name', 'tyner') }}</title>
+    <title inertia>{{ config('app.name', 'EAPMS') }}</title>
 
     @routes
     @viteReactRefresh

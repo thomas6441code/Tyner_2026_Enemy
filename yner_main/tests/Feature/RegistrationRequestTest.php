@@ -10,8 +10,12 @@ use App\Models\Employee;
 use App\Models\RegistrationRequest;
 use App\Models\User;
 use App\Models\WorkSchedule;
+use App\Notifications\SystemNotification;
+use App\Support\MailDomainResolver;
 use Database\Seeders\RoleSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Notifications\AnonymousNotifiable;
+use Illuminate\Support\Facades\Notification;
 use Tests\TestCase;
 
 class RegistrationRequestTest extends TestCase
@@ -61,6 +65,88 @@ class RegistrationRequestTest extends TestCase
             )->id,
             'hire_date' => '2026-08-01',
         ], $overrides);
+    }
+
+    /**
+     * Force the deliverability check on (it is off under testing) with a resolver whose
+     * verdict the test controls, so no DNS query is made.
+     */
+    private function fakeMailDomains(bool $accepts): void
+    {
+        config(['auth.registration.verify_email_domain' => true]);
+
+        $this->app->instance(MailDomainResolver::class, new class($accepts) extends MailDomainResolver
+        {
+            public function __construct(private readonly bool $accepts) {}
+
+            public function acceptsMail(string $email): bool
+            {
+                return $this->accepts;
+            }
+        });
+    }
+
+    public function test_email_is_required(): void
+    {
+        $this->post('/register', [
+            'first_name' => 'Thomas',
+            'last_name' => 'Bonaventure',
+        ])->assertSessionHasErrors('email');
+
+        $this->assertDatabaseCount('registration_requests', 0);
+    }
+
+    public function test_request_is_refused_when_the_email_domain_accepts_no_mail(): void
+    {
+        $this->fakeMailDomains(false);
+
+        $this->post('/register', [
+            'first_name' => 'Thomas',
+            'last_name' => 'Bonaventure',
+            'email' => 'thomas@no-such-domain.invalid',
+        ])->assertSessionHasErrors('email');
+
+        // Nothing is filed: an unreachable address could never redeem an invitation.
+        $this->assertDatabaseCount('registration_requests', 0);
+    }
+
+    public function test_request_is_filed_when_the_email_domain_accepts_mail(): void
+    {
+        $this->fakeMailDomains(true);
+
+        $this->post('/register', [
+            'first_name' => 'Thomas',
+            'last_name' => 'Bonaventure',
+            'email' => 'thomas@gmail.com',
+        ])->assertRedirect(route('registration-request.submitted'));
+
+        $this->assertDatabaseHas('registration_requests', ['email' => 'thomas@gmail.com']);
+    }
+
+    public function test_approval_emails_the_activation_link_to_the_applicant(): void
+    {
+        Notification::fake();
+
+        $request = $this->pendingRequest(['email' => 'applicant@example.com']);
+
+        $response = $this->actingAs($this->userWithRole(RoleName::Admin))
+            ->put(route('registration-requests.approve', $request), $this->approvalPayload());
+
+        $activationUrl = $response->getSession()->get('invitationUrl');
+        $this->assertNotNull($activationUrl);
+
+        Notification::assertSentOnDemand(
+            SystemNotification::class,
+            function (SystemNotification $notification, array $channels, AnonymousNotifiable $notifiable) use ($activationUrl) {
+                return $notifiable->routes['mail'] === 'applicant@example.com'
+                    && in_array('mail', $channels, true)
+                    // The link itself must be in the mail, not merely announced by it.
+                    && $notification->toMail($notifiable)->actionUrl === $activationUrl;
+            },
+        );
+
+        // The reviewer is told where it went, and still gets the link for manual delivery.
+        $response->assertSessionHas('invitationEmail', 'applicant@example.com');
     }
 
     public function test_duplicate_email_is_absorbed_without_revealing_it(): void

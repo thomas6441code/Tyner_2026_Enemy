@@ -9,6 +9,7 @@ use App\Models\Department;
 use App\Models\RegistrationRequest;
 use App\Models\User;
 use App\Notifications\SystemNotification;
+use App\Rules\DeliverableEmail;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Notification;
@@ -43,7 +44,10 @@ class RegistrationRequestController extends Controller
         $validated = $request->validate([
             'first_name' => ['required', 'string', 'max:255'],
             'last_name' => ['required', 'string', 'max:255'],
-            'email' => ['required', 'string', 'lowercase', 'email', 'max:255'],
+            // The address is the whole delivery path for the activation link, so it is
+            // required and must resolve to a domain that actually accepts mail — an
+            // approved applicant with a dead address can never finish creating an account.
+            'email' => ['required', 'string', 'lowercase', 'email:rfc', 'max:255', new DeliverableEmail],
             'phone' => ['nullable', 'string', 'max:50'],
             'department_id' => ['nullable', 'integer', 'exists:departments,id'],
             'note' => ['nullable', 'string', 'max:1000'],

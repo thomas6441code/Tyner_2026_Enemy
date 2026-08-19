@@ -73,7 +73,7 @@ class MobileCheckInController extends Controller
                 ->count(),
             'maxAccuracyMeters' => (int) config('attendance.mobile.max_accuracy_meters'),
             'webauthnRequired' => $this->webauthn->isRequired(),
-            'can' => ['create' => $user->can('create', MobileCheckIn::class)],
+            'actions' => ['create' => $user->can('create', MobileCheckIn::class)],
         ]);
     }
 

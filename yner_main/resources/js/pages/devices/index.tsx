@@ -38,13 +38,13 @@ interface DevicesIndexProps {
         links: { url: string | null; label: string; active: boolean }[];
     };
     stats: { active: number; revoked: number; mine: number };
-    can: { register: boolean };
+    actions: { register: boolean };
     isAdmin: boolean;
     rpId: string;
     status?: string;
 }
 
-export default function DevicesIndex({ devices, stats, can, isAdmin, rpId, status }: DevicesIndexProps) {
+export default function DevicesIndex({ devices, stats, actions, isAdmin, rpId, status }: DevicesIndexProps) {
     const support = useWebAuthnSupport();
     const [registering, setRegistering] = useState(false);
     const [revoking, setRevoking] = useState<Device | null>(null);
@@ -60,7 +60,7 @@ export default function DevicesIndex({ devices, stats, can, isAdmin, rpId, statu
                         Phones registered to check in from outside a biometric terminal
                     </p>
                 </div>
-                {can.register && support === 'supported' && (
+                {actions.register && support === 'supported' && (
                     <Button onClick={() => setRegistering(true)}>
                         <Smartphone className="h-4 w-4" /> Register this device
                     </Button>
@@ -85,7 +85,7 @@ export default function DevicesIndex({ devices, stats, can, isAdmin, rpId, statu
                 </div>
             )}
 
-            {can.register && support === 'supported' && stats.mine === 0 && (
+            {actions.register && support === 'supported' && stats.mine === 0 && (
                 <div className="mt-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
                     You have no registered device yet. Register this phone to check in from the field.
                 </div>

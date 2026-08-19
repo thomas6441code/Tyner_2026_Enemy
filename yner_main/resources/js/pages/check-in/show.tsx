@@ -20,7 +20,7 @@ interface CheckInShowProps {
     activeDevices?: number;
     maxAccuracyMeters?: number;
     webauthnRequired: boolean;
-    can?: { create: boolean };
+    actions?: { create: boolean };
 }
 
 type Outcome = { kind: 'success'; message: string; flagged: boolean } | { kind: 'error'; message: string; distance: number | null } | null;
@@ -34,7 +34,7 @@ export default function CheckInShow({
     activeDevices = 0,
     maxAccuracyMeters = 100,
     webauthnRequired,
-    can,
+    actions,
 }: CheckInShowProps) {
     const support = useWebAuthnSupport();
     const { authenticate } = useWebAuthn();
@@ -139,7 +139,7 @@ export default function CheckInShow({
     }
 
     const needsDevice = webauthnRequired && activeDevices === 0;
-    const canPunch = can?.create && support === 'supported' && !needsDevice;
+    const canPunch = actions?.create && support === 'supported' && !needsDevice;
 
     return (
         <AppLayout>

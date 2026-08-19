@@ -118,6 +118,22 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Registration Requests
+    |--------------------------------------------------------------------------
+    |
+    | Whether a public registration request must use an email domain that really
+    | accepts mail (an MX/A lookup — see App\Rules\DeliverableEmail). Disabled under
+    | testing, and worth disabling on any deployment without outbound DNS, where the
+    | check would reject every address including the valid ones.
+    |
+    */
+
+    'registration' => [
+        'verify_email_domain' => env('AUTH_VERIFY_EMAIL_DOMAIN', true),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
     | Password Confirmation Timeout
     |--------------------------------------------------------------------------
     |

@@ -42,6 +42,7 @@ interface Props {
     formData: { departments: Option[]; workSchedules: Option[]; workLocations: Option[] };
     status?: string;
     invitationUrl?: string;
+    invitationEmail?: string | null;
 }
 
 const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'destructive' | 'success'> = {
@@ -50,7 +51,14 @@ const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'destructive' | '
     rejected: 'destructive',
 };
 
-export default function RegistrationRequestsIndex({ requests, stats, formData, status, invitationUrl }: Props) {
+export default function RegistrationRequestsIndex({
+    requests,
+    stats,
+    formData,
+    status,
+    invitationUrl,
+    invitationEmail,
+}: Props) {
     const [approving, setApproving] = useState<RegistrationRow | null>(null);
     const [rejecting, setRejecting] = useState<RegistrationRow | null>(null);
     const [linkUrl, setLinkUrl] = useState<string | null>(null);
@@ -69,8 +77,8 @@ export default function RegistrationRequestsIndex({ requests, stats, formData, s
             <div>
                 <h1 className="text-2xl font-bold tracking-tight">Registration Requests</h1>
                 <p className="text-sm text-muted-foreground">
-                    Review who may join EAPMS. Approving creates an employee record and issues a single-use activation
-                    link — no account exists until that link is redeemed.
+                    Review who may join EAPMS. Approving creates an employee record and emails the applicant a
+                    single-use activation link — no account exists until that link is redeemed.
                 </p>
             </div>
 
@@ -194,7 +202,9 @@ export default function RegistrationRequestsIndex({ requests, stats, formData, s
 
             {rejecting && <RegistrationRejectDialog record={rejecting} onClose={() => setRejecting(null)} />}
 
-            {linkUrl && <InvitationLinkDialog url={linkUrl} onClose={() => setLinkUrl(null)} />}
+            {linkUrl && (
+                <InvitationLinkDialog url={linkUrl} emailedTo={invitationEmail} onClose={() => setLinkUrl(null)} />
+            )}
         </AppLayout>
     );
 }

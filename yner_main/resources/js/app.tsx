@@ -4,7 +4,7 @@ import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { ComponentType } from 'react';
 import { createRoot } from 'react-dom/client';
 
-const appName = 'tyner';
+const appName = 'EAPMS';
 
 createInertiaApp({
     title: (title) => (title ? `${title} - ${appName}` : appName),

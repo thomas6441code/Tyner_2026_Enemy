@@ -67,15 +67,22 @@ export default function RegistrationRequest({ departments }: { departments: Depa
                 </div>
 
                 <div>
-                    <Label htmlFor="email">Email</Label>
+                    <Label htmlFor="email">
+                        Email <span className="text-destructive">*</span>
+                    </Label>
                     <Input
                         id="email"
                         type="email"
                         value={data.email}
                         className="mt-1"
+                        required
                         autoComplete="email"
                         onChange={(e) => setData('email', e.target.value)}
                     />
+                    <p className="mt-1 text-xs text-muted-foreground">
+                        Your activation link is sent here, so it must be an address you can actually open — a Gmail,
+                        Outlook, or organisation account. Addresses whose domain accepts no mail are rejected.
+                    </p>
                     <InputError message={errors.email} className="mt-2" />
                 </div>
 

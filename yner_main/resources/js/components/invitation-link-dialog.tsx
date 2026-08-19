@@ -11,7 +11,15 @@ import { Input } from '@/components/ui/input';
  * Only the token's hash is stored, so this is the single moment the link is readable. It
  * is also the practical delivery path whenever mail is not configured for real sending.
  */
-export function InvitationLinkDialog({ url, onClose }: { url: string; onClose: () => void }) {
+export function InvitationLinkDialog({
+    url,
+    emailedTo,
+    onClose,
+}: {
+    url: string;
+    emailedTo?: string | null;
+    onClose: () => void;
+}) {
     const [copied, setCopied] = useState(false);
 
     const copy = async () => {
@@ -31,7 +39,9 @@ export function InvitationLinkDialog({ url, onClose }: { url: string; onClose: (
                 <DialogHeader>
                     <DialogTitle>Activation link</DialogTitle>
                     <DialogDescription>
-                        Send this link to the applicant so they can create their account.
+                        {emailedTo
+                            ? `This link was emailed to ${emailedTo}. Share the copy below only if it never arrives.`
+                            : 'Mail delivery did not go through — send this link to the applicant yourself so they can create their account.'}
                     </DialogDescription>
                 </DialogHeader>
 

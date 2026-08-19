@@ -9,7 +9,7 @@ COPY resources ./resources
 COPY vite.config.js tsconfig.json ./
 RUN npm run build
 
-FROM php:8.2-fpm-alpine
+FROM php:8.4-fpm-alpine
 
 # System dependencies
 RUN apk add --no-cache \

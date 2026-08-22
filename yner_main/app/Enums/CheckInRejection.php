@@ -38,7 +38,7 @@ enum CheckInRejection: string
             self::NoEmployeeRecord => 'Your account is not linked to an active employee record. Contact HR.',
             self::WebauthnFailed => 'Your device could not be verified. Register this phone under My Device, then try again.',
             self::NoLinkedDevice => 'No device is linked to your account. Register this phone under My Device, then try again.',
-            self::DeviceMismatch => 'This is not the device linked to your account. Check in from your registered phone, or request a device reset.',
+            self::DeviceMismatch => 'This device is linked to a different account. Check in from your own registered phone, or ask an administrator for a device reset.',
             self::LowGpsAccuracy => 'Your location is not accurate enough. Move outdoors or somewhere with a clearer sky view and try again.',
             self::NoWorkLocation => 'No work location has been assigned to you or your department, so your position cannot be checked. Contact HR.',
             self::OutsideGeofence => 'You are outside your assigned work location.',

@@ -1,12 +1,14 @@
 import { Head, router } from '@inertiajs/react';
 import { CalendarClock, CheckCircle2, Clock, Eye, Gavel, Paperclip, Pencil, Plus, XCircle } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { route } from 'ziggy-js';
 
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { PermissionRequestFormDialog, type PermissionRecord } from '@/components/permission-request-form-dialog';
 import { PermissionReviewDialog } from '@/components/permission-review-dialog';
 import { Pagination } from '@/components/pagination';
+import { SortableHead } from '@/components/sortable-head';
+import { SearchInput, TableToolbar, nextDirection, visitIndex, type IndexFilters } from '@/components/table-toolbar';
 import { StatCard } from '@/components/stat-card';
 import { Badge, type BadgeProps } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -29,6 +31,7 @@ interface PermissionRow {
     reviewer: string | null;
     review_note: string | null;
     reviewed_at: string | null;
+    submitted_at: string | null;
     has_attachment: boolean;
     can_review: boolean;
     can_edit: boolean;
@@ -45,6 +48,7 @@ interface PermissionsIndexProps {
         data: PermissionRow[];
         links: { url: string | null; label: string; active: boolean }[];
     };
+    filters: IndexFilters & { status_filter?: string | null };
     stats: { pending: number; approved: number; rejected: number };
     types: Option[];
     statuses: Option[];
@@ -59,19 +63,29 @@ const statusVariant: Record<string, BadgeProps['variant']> = {
     cancelled: 'secondary',
 };
 
-export default function PermissionsIndex({ requests, stats, types, actions, status }: PermissionsIndexProps) {
+export default function PermissionsIndex({ requests, filters, stats, types, actions, status }: PermissionsIndexProps) {
     const [dialog, setDialog] = useState<{ record: PermissionRecord | null } | null>(null);
     const [reviewing, setReviewing] = useState<PermissionRow | null>(null);
     const [viewing, setViewing] = useState<PermissionRow | null>(null);
     const [cancelling, setCancelling] = useState<PermissionRow | null>(null);
-    const [filter, setFilter] = useState<string>('all');
 
-    const rows = useMemo(
-        () => (filter === 'all' ? requests.data : requests.data.filter((r) => r.status === filter)),
-        [requests.data, filter],
-    );
+    const rows = requests.data;
+    const statusFilter = filters.status_filter ?? 'all';
 
-    const filters = [{ value: 'all', label: 'All' }, { value: 'pending', label: 'Pending' }, { value: 'approved', label: 'Approved' }, { value: 'rejected', label: 'Rejected' }];
+    // Status, search and sort are all resolved server-side. Filtering the current page in the
+    // browser used to hide matching requests that simply sat on page two.
+    const apply = (patch: Record<string, unknown>) => visitIndex('permission-requests.index', { ...filters, ...patch });
+
+    const applySort = (column: string) =>
+        apply({ sort: column, direction: nextDirection(column, filters.sort, filters.direction) });
+
+    const statusFilters = [
+        { value: 'all', label: 'All' },
+        { value: 'pending', label: 'Pending' },
+        { value: 'approved', label: 'Approved' },
+        { value: 'rejected', label: 'Rejected' },
+        { value: 'cancelled', label: 'Cancelled' },
+    ];
 
     return (
         <AppLayout>
@@ -102,14 +116,14 @@ export default function PermissionsIndex({ requests, stats, types, actions, stat
             )}
 
             <div className="mt-6 flex flex-wrap gap-2">
-                {filters.map((f) => (
+                {statusFilters.map((f) => (
                     <button
                         key={f.value}
                         type="button"
-                        onClick={() => setFilter(f.value)}
+                        onClick={() => apply({ status_filter: f.value === 'all' ? null : f.value })}
                         className={cn(
                             'rounded-full border px-3 py-1 text-sm font-medium transition-colors',
-                            filter === f.value
+                            statusFilter === f.value
                                 ? 'border-primary bg-primary/10 text-primary'
                                 : 'border-border text-muted-foreground hover:bg-accent',
                         )}
@@ -121,22 +135,33 @@ export default function PermissionsIndex({ requests, stats, types, actions, stat
 
             <Card className="mt-4">
                 <CardContent className="p-0">
+                    <TableToolbar>
+                        <SearchInput
+                            value={filters.search}
+                            onSearch={(search) => apply({ search })}
+                            placeholder="Search employee, code, reason, reviewer…"
+                            className="min-w-0 flex-1"
+                        />
+                    </TableToolbar>
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead>Employee</TableHead>
-                                <TableHead>Type</TableHead>
-                                <TableHead>Dates</TableHead>
-                                <TableHead>Status</TableHead>
+                                <SortableHead column="employee" label="Employee" sort={filters.sort} direction={filters.direction} onSort={applySort} />
+                                <SortableHead column="type" label="Type" sort={filters.sort} direction={filters.direction} onSort={applySort} />
+                                <SortableHead column="start_date" label="Dates" sort={filters.sort} direction={filters.direction} onSort={applySort} />
+                                <SortableHead column="status" label="Status" sort={filters.sort} direction={filters.direction} onSort={applySort} />
                                 <TableHead>Reviewer</TableHead>
+                                <SortableHead column="submitted" label="Submitted" sort={filters.sort} direction={filters.direction} onSort={applySort} />
                                 <TableHead className="text-right">Actions</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {rows.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
-                                        No permission requests.
+                                    <TableCell colSpan={7} className="py-10 text-center text-muted-foreground">
+                                        {filters.search || filters.status_filter
+                                            ? 'No permission requests match your filters.'
+                                            : 'No permission requests.'}
                                     </TableCell>
                                 </TableRow>
                             ) : (
@@ -162,6 +187,9 @@ export default function PermissionsIndex({ requests, stats, types, actions, stat
                                             </Badge>
                                         </TableCell>
                                         <TableCell className="text-muted-foreground">{row.reviewer ?? '—'}</TableCell>
+                                        <TableCell className="whitespace-nowrap text-muted-foreground">
+                                            {row.submitted_at ?? '—'}
+                                        </TableCell>
                                         <TableCell className="whitespace-nowrap text-right">
                                             <Button variant="ghost" size="sm" className="mr-1" onClick={() => setViewing(row)}>
                                                 <Eye className="h-4 w-4" /> View

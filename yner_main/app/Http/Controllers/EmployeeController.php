@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Concerns\HasIndexFilters;
 use App\Models\Department;
 use App\Models\Employee;
 use App\Models\User;
@@ -15,6 +16,26 @@ use Inertia\Response;
 
 class EmployeeController extends Controller
 {
+    use HasIndexFilters;
+
+    /**
+     * Sort keys the index accepts, mapped to what they actually order by. Relation columns are
+     * ordered through a correlated subquery so a sort never changes which rows come back.
+     *
+     * @return array<string, mixed>
+     */
+    private function sortable(): array
+    {
+        return [
+            'name' => ['last_name', 'first_name'],
+            'employee_code' => 'employee_code',
+            'department' => Department::select('name')->whereColumn('departments.id', 'employees.department_id'),
+            'schedule' => WorkSchedule::select('name')->whereColumn('work_schedules.id', 'employees.work_schedule_id'),
+            'status' => 'status',
+            'hire_date' => 'hire_date',
+        ];
+    }
+
     public function __construct(private readonly EmployeeCodeGenerator $codes) {}
 
     /**
@@ -24,9 +45,19 @@ class EmployeeController extends Controller
     {
         $this->authorize('viewAny', Employee::class);
 
-        $employees = Employee::with(['department', 'workSchedule', 'workLocation', 'user'])
-            ->orderBy('last_name')
+        $filters = $this->indexFilters($request, $this->sortable(), 'name');
+
+        $query = Employee::with(['department', 'workSchedule', 'workLocation', 'user']);
+
+        $this->applySearch($query, $filters['search'], [
+            'employee_code', 'first_name', 'last_name', 'phone',
+            'department.name', 'workSchedule.name', 'user.email',
+        ]);
+        $this->applySort($query, $filters, $this->sortable());
+
+        $employees = $query
             ->paginate(15)
+            ->withQueryString()
             ->through(fn (Employee $employee) => [
                 'id' => $employee->id,
                 'employee_code' => $employee->employee_code,
@@ -51,6 +82,7 @@ class EmployeeController extends Controller
 
         return Inertia::render('employees/index', $this->formData() + [
             'employees' => $employees,
+            'filters' => $filters,
             'stats' => [
                 'total' => $total,
                 'active' => $active,

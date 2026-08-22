@@ -6,6 +6,7 @@ use App\Enums\CheckInDirection;
 use App\Enums\CheckInRejection;
 use App\Enums\CheckInResult;
 use App\Exceptions\MobileCheckInException;
+use App\Http\Concerns\HasIndexFilters;
 use App\Models\Employee;
 use App\Models\MobileCheckIn;
 use App\Models\UserDevice;
@@ -26,6 +27,23 @@ use Inertia\Response;
  */
 class MobileCheckInController extends Controller
 {
+    use HasIndexFilters;
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function sortable(): array
+    {
+        return [
+            'employee' => Employee::select('last_name')->whereColumn('employees.id', 'mobile_check_ins.employee_id'),
+            'punched_at' => 'punched_at',
+            'work_date' => 'work_date',
+            'direction' => 'direction',
+            'result' => 'result',
+            'distance_meters' => 'distance_meters',
+        ];
+    }
+
     public function __construct(
         private readonly MobileCheckInService $checkIns,
         private readonly GeofenceService $geofence,
@@ -130,7 +148,11 @@ class MobileCheckInController extends Controller
             ], 422);
         }
 
-        return response()->json([
+        return response()->json(array_filter([
+            // Present only when this browser re-claimed the binding: the client mirrors it into
+            // localStorage so the next check-in is not flagged all over again. The same value
+            // is already queued as an httpOnly cookie.
+            'device_token' => $this->checkIns->reissuedDeviceToken(),
             'message' => $checkIn->direction === CheckInDirection::In
                 ? 'Checked in at '.$checkIn->punched_at->format('H:i').'.'
                 : 'Checked out at '.$checkIn->punched_at->format('H:i').'.',
@@ -138,7 +160,7 @@ class MobileCheckInController extends Controller
             'punched_at' => $checkIn->punched_at->format('H:i'),
             'distance_meters' => $checkIn->distance_meters,
             'flagged' => $checkIn->flagged,
-        ]);
+        ], fn (mixed $value) => $value !== null));
     }
 
     /**
@@ -156,15 +178,26 @@ class MobileCheckInController extends Controller
                 ? $request->query('result')
                 : null,
             'flagged' => $request->boolean('flagged'),
-        ];
+        ] + $this->indexFilters($request, $this->sortable(), 'punched_at', 'desc');
 
-        $checkIns = MobileCheckIn::with(['employee', 'workLocation', 'userDevice.user'])
+        $query = MobileCheckIn::with(['employee', 'workLocation', 'userDevice.user'])
             ->when($filters['from'], fn ($q, $from) => $q->whereDate('work_date', '>=', $from))
             ->when($filters['to'], fn ($q, $to) => $q->whereDate('work_date', '<=', $to))
             ->when($filters['employee'], fn ($q, $id) => $q->where('employee_id', $id))
             ->when($filters['result'], fn ($q, $result) => $q->where('result', $result))
-            ->when($filters['flagged'], fn ($q) => $q->where('flagged', true))
-            ->latest('punched_at')
+            ->when($filters['flagged'], fn ($q) => $q->where('flagged', true));
+
+        // The free-text box complements the dropdowns rather than duplicating them: it is how
+        // an investigator gets from an IP address or a device name back to a person.
+        $this->applySearch($query, $filters['search'], [
+            'ip_address', 'flag_reason',
+            'employee.first_name', 'employee.last_name', 'employee.employee_code',
+            'userDevice.device_name', 'workLocation.name',
+        ]);
+
+        $this->applySort($query, $filters, $this->sortable());
+
+        $checkIns = $query
             ->paginate(20)
             ->withQueryString()
             ->through(fn (MobileCheckIn $checkIn) => [

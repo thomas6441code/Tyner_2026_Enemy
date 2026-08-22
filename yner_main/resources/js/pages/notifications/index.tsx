@@ -1,4 +1,5 @@
-import { Head, Link, usePage } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
+import { useState } from 'react';
 import { CheckCheck, Clock3, ExternalLink, Mail, Megaphone, TriangleAlert } from 'lucide-react';
 import { route } from 'ziggy-js';
 
@@ -70,7 +71,20 @@ function typeIcon(type: string) {
 
 export default function Notifications({ notifications }: NotificationsProps) {
     const { flash } = usePage<SharedData>().props;
+    const [processing, setProcessing] = useState(false);
     const unreadCount = notifications.data.filter((item) => item.is_unread).length;
+
+    const markRead = (url: string) => {
+        router.patch(
+            url,
+            {},
+            {
+                preserveScroll: true,
+                onStart: () => setProcessing(true),
+                onFinish: () => setProcessing(false),
+            },
+        );
+    };
 
     return (
         <AppLayout>
@@ -89,12 +103,15 @@ export default function Notifications({ notifications }: NotificationsProps) {
                 {notifications.total > 0 && (
                     <div className="flex items-center gap-2">
                         <Badge variant="secondary">{unreadCount} unread</Badge>
-                        <form action={route('notifications.read-all')} method="post">
-                            <input type="hidden" name="_method" value="patch" />
-                            <Button type="submit" variant="outline" size="sm" disabled={unreadCount === 0}>
-                                <CheckCheck className="mr-2 h-4 w-4" /> Mark all read
-                            </Button>
-                        </form>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            disabled={unreadCount === 0 || processing}
+                            onClick={() => markRead(route('notifications.read-all'))}
+                        >
+                            <CheckCheck className="mr-2 h-4 w-4" /> Mark all read
+                        </Button>
                     </div>
                 )}
             </div>
@@ -154,12 +171,15 @@ export default function Notifications({ notifications }: NotificationsProps) {
                                         )}
 
                                         {notification.is_unread && (
-                                            <form action={route('notifications.read', notification.id)} method="post">
-                                                <input type="hidden" name="_method" value="patch" />
-                                                <Button type="submit" variant="outline" size="sm">
-                                                    Mark read
-                                                </Button>
-                                            </form>
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                disabled={processing}
+                                                onClick={() => markRead(route('notifications.read', notification.id))}
+                                            >
+                                                Mark read
+                                            </Button>
                                         )}
                                     </div>
                                 </CardContent>

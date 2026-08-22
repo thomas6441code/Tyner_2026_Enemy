@@ -10,7 +10,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { describeWebAuthnError, useWebAuthn, useWebAuthnSupport } from '@/components/webauthn/use-webauthn';
 import { WebAuthnUnavailable } from '@/components/webauthn/webauthn-unavailable';
 import AppLayout from '@/layouts/app-layout';
-import { deviceTokenHeader } from '@/lib/device-token';
+import { deviceTokenHeader, storeDeviceToken } from '@/lib/device-token';
 
 interface CheckInShowProps {
     employee: { name: string; employee_code: string } | null;
@@ -104,6 +104,13 @@ export default function CheckInShow({
                 });
 
                 return;
+            }
+
+            // The server re-issues a binding token when this browser had none but produced the
+            // account's linked credential. Mirroring it here is what stops the next check-in
+            // from being flagged as another re-claim.
+            if (typeof body.device_token === 'string') {
+                storeDeviceToken(body.device_token);
             }
 
             setOutcome({ kind: 'success', message: body.message, flagged: Boolean(body.flagged) });

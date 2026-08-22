@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Enums\DeviceResetStatus;
 use App\Enums\DeviceStatus;
 use App\Enums\RoleName;
+use App\Http\Concerns\HasIndexFilters;
 use App\Models\AuditLog;
 use App\Models\DeviceResetRequest;
 use App\Models\User;
@@ -29,6 +30,22 @@ use RuntimeException;
  */
 class UserDeviceController extends Controller
 {
+    use HasIndexFilters;
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function sortable(): array
+    {
+        return [
+            'device_name' => 'device_name',
+            'owner' => User::select('name')->whereColumn('users.id', 'user_devices.user_id'),
+            'status' => 'status',
+            'last_used_at' => 'last_used_at',
+            'registered_at' => 'created_at',
+        ];
+    }
+
     public function __construct(
         private readonly WebAuthnService $webauthn,
         private readonly DeviceTokenService $deviceTokens,
@@ -44,11 +61,28 @@ class UserDeviceController extends Controller
         $user = $request->user();
         $isAdmin = $user->hasRole(RoleName::Admin->value);
 
-        $devices = UserDevice::with('user')
-            ->when(! $isAdmin, fn ($query) => $query->where('user_id', $user->id))
-            ->orderByRaw("status = 'active' desc")
-            ->latest()
+        $filters = $this->indexFilters($request, $this->sortable(), 'registered_at', 'desc');
+
+        $query = UserDevice::with('user')
+            ->when(! $isAdmin, fn ($q) => $q->where('user_id', $user->id));
+
+        // An Admin looks a device up by whose it is; the owner themselves by what they called
+        // it. `user.name`/`user.email` are only ever reachable once the scope above has already
+        // narrowed the set, so this cannot widen what an employee sees.
+        $this->applySearch($query, $filters['search'], [
+            'device_name', 'rp_id', 'user.name', 'user.email',
+        ]);
+
+        // Active devices first by default; a chosen column takes over completely.
+        if (! $filters['explicit']) {
+            $query->orderByRaw("status = 'active' desc");
+        }
+
+        $this->applySort($query, $filters, $this->sortable());
+
+        $devices = $query
             ->paginate(15)
+            ->withQueryString()
             ->through(fn (UserDevice $device) => [
                 'id' => $device->id,
                 'device_name' => $device->device_name,
@@ -84,6 +118,7 @@ class UserDeviceController extends Controller
 
         return Inertia::render('devices/index', [
             'devices' => $devices,
+            'filters' => $filters,
             'stats' => [
                 'active' => UserDevice::where('status', DeviceStatus::Active)
                     ->when(! $isAdmin, fn ($q) => $q->where('user_id', $user->id))->count(),

@@ -117,7 +117,7 @@ independent layers enforce this, because each has a gap the others cover:
 | Layer | Mechanism | Gap it leaves |
 | --- | --- | --- |
 | **Authenticator** | Registration sends *every* active credential in the system as `excludeCredentials`, so a phone already linked to any account aborts the ceremony itself with `InvalidStateError` — enforced in the secure element, below anything a tampered client can reach. | A dishonest client could drop the list. Capped by `WEBAUTHN_EXCLUDE_LIMIT`; a warning is logged whenever it truncates, and a truncated list means some linked phone is no longer excluded. |
-| **Server** | A random binding token minted at registration, stored only as a SHA-256 digest, carried both as an httpOnly cookie and as a localStorage mirror echoed in `X-Device-Token`. It identifies the *handset*, which a credential cannot — a synced or exported passkey still produces a valid assertion from a second phone. | A user can clear both stores. Doing so fails check-in loudly rather than silently. |
+| **Server** | A random binding token minted at registration, stored only as a SHA-256 digest, carried both as an httpOnly cookie and as a localStorage mirror echoed in `X-Device-Token`. It identifies the browser profile that enrolled, which a credential cannot — a synced or exported passkey still produces a valid assertion elsewhere. | Nothing on the web identifies physical hardware, so this is per-browser-profile. A missing token is therefore **flagged, not blocked** — see below. |
 | **Database** | `user_devices.active_user_id` — nullable and unique, mirroring `user_id` while active and NULL once revoked. Portable "at most one active device per user" on both MySQL and SQLite. | Cannot tell two handsets apart. |
 
 **Employees cannot unlink their own phone.** Self-service unlinking would reduce the rule to a
@@ -126,6 +126,20 @@ request**; an Admin or HR Officer reviews it, and approving atomically revokes t
 device and opens a single-use window (`DEVICE_RESET_WINDOW_HOURS`, default 24) for one
 replacement. Every step is audit-logged, and a check-in from an unlinked or mismatched device is
 recorded, flagged, and notified to Admins rather than merely refused.
+
+**A missing token is flagged, not blocked.** Cookies and localStorage are per-browser-profile, so
+a second browser, an in-app webview (a link opened from WhatsApp or Gmail), or cleared site data
+all look exactly like a stolen handset. Blocking them would lock people out of their own
+attendance and route a browser switch through an Admin-approved device reset. So when the
+account's own bound credential signs but no token is presented, the punch is accepted, a fresh
+token is issued to that browser, and the takeover is flagged and audited (`device.token_reclaimed`).
+Issuing rotates the digest, so exactly one browser holds a live token at a time — two people
+taking turns on one account produce a visible ping-pong of re-claims in the check-in log instead
+of sharing quietly. This follows the same rule as the impossible-travel check: an Admin seeing
+the flag can judge it, an automatic refusal cannot.
+
+Two things are still refused outright: an assertion from a credential that is **not** the
+account's linked one, and a token that resolves to **another account's** active device.
 
 Note what is **not** used to identify a device: the client IP address. Everyone on the office
 Wi-Fi shares one, so it would pass for a colleague standing beside you and fail for you on mobile

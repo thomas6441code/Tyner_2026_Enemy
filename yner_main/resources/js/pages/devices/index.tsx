@@ -6,6 +6,8 @@ import { route } from 'ziggy-js';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { DeviceResetRequestDialog } from '@/components/device-reset-request-dialog';
 import { Pagination } from '@/components/pagination';
+import { SortableHead } from '@/components/sortable-head';
+import { SearchInput, TableToolbar, nextDirection, visitIndex, type IndexFilters } from '@/components/table-toolbar';
 import { StatCard } from '@/components/stat-card';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -48,6 +50,7 @@ interface DevicesIndexProps {
         data: Device[];
         links: { url: string | null; label: string; active: boolean }[];
     };
+    filters: IndexFilters;
     stats: { active: number; revoked: number; mine: number };
     binding: Binding;
     actions: { register: boolean; requestReset: boolean; reviewResets: boolean };
@@ -56,11 +59,18 @@ interface DevicesIndexProps {
     status?: string;
 }
 
-export default function DevicesIndex({ devices, stats, binding, actions, isAdmin, rpId, status }: DevicesIndexProps) {
+export default function DevicesIndex({ devices, filters, stats, binding, actions, isAdmin, rpId, status }: DevicesIndexProps) {
     const support = useWebAuthnSupport();
     const [registering, setRegistering] = useState(false);
     const [requestingReset, setRequestingReset] = useState(false);
     const [revoking, setRevoking] = useState<Device | null>(null);
+
+    const applySort = (column: string) =>
+        visitIndex('devices.index', {
+            ...filters,
+            sort: column,
+            direction: nextDirection(column, filters.sort, filters.direction),
+        });
 
     return (
         <AppLayout>
@@ -190,15 +200,23 @@ export default function DevicesIndex({ devices, stats, binding, actions, isAdmin
 
                     <Card className="mt-4">
                         <CardContent className="p-0">
+                            <TableToolbar>
+                                <SearchInput
+                                    value={filters.search}
+                                    onSearch={(search) => visitIndex('devices.index', { ...filters, search })}
+                                    placeholder="Search device name or owner…"
+                                    className="min-w-0 flex-1"
+                                />
+                            </TableToolbar>
                             <div className="overflow-x-auto">
                                 <Table>
                                     <TableHeader>
                                         <TableRow>
-                                            <TableHead>Device</TableHead>
-                                            <TableHead>Owner</TableHead>
-                                            <TableHead>Registered</TableHead>
-                                            <TableHead>Last Used</TableHead>
-                                            <TableHead>Status</TableHead>
+                                            <SortableHead column="device_name" label="Device" sort={filters.sort} direction={filters.direction} onSort={applySort} />
+                                            <SortableHead column="owner" label="Owner" sort={filters.sort} direction={filters.direction} onSort={applySort} />
+                                            <SortableHead column="registered_at" label="Registered" sort={filters.sort} direction={filters.direction} onSort={applySort} />
+                                            <SortableHead column="last_used_at" label="Last Used" sort={filters.sort} direction={filters.direction} onSort={applySort} />
+                                            <SortableHead column="status" label="Status" sort={filters.sort} direction={filters.direction} onSort={applySort} />
                                             <TableHead className="text-right">Actions</TableHead>
                                         </TableRow>
                                     </TableHeader>
@@ -206,7 +224,9 @@ export default function DevicesIndex({ devices, stats, binding, actions, isAdmin
                                         {devices.data.length === 0 ? (
                                             <TableRow>
                                                 <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
-                                                    No devices linked yet.
+                                                    {filters.search
+                                                        ? 'No devices match your search.'
+                                                        : 'No devices linked yet.'}
                                                 </TableCell>
                                             </TableRow>
                                         ) : (

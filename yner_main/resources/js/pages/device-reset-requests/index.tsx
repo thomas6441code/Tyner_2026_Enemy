@@ -5,6 +5,8 @@ import { route } from 'ziggy-js';
 
 import InputError from '@/components/input-error';
 import { Pagination } from '@/components/pagination';
+import { SortableHead } from '@/components/sortable-head';
+import { SearchInput, TableToolbar, nextDirection, visitIndex, type IndexFilters } from '@/components/table-toolbar';
 import { StatCard } from '@/components/stat-card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -38,7 +40,8 @@ interface Props {
         data: ResetRow[];
         links: { url: string | null; label: string; active: boolean }[];
     };
-    filters: { status?: string | null; employee?: string | null };
+    filters: IndexFilters & { status_filter?: string | null };
+    statuses: { value: string; label: string }[];
     stats: { pending: number; approved: number; rejected: number };
     status?: string;
 }
@@ -49,8 +52,14 @@ const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'destructive' | '
     rejected: 'destructive',
 };
 
-export default function DeviceResetRequestsIndex({ requests, stats, status }: Props) {
+export default function DeviceResetRequestsIndex({ requests, filters, statuses, stats, status }: Props) {
     const [reviewing, setReviewing] = useState<{ row: ResetRow; decision: 'approve' | 'reject' } | null>(null);
+
+    const apply = (patch: Record<string, unknown>) =>
+        visitIndex('device-reset-requests.index', { ...filters, ...patch });
+
+    const applySort = (column: string) =>
+        apply({ sort: column, direction: nextDirection(column, filters.sort, filters.direction) });
 
     return (
         <AppLayout>
@@ -84,15 +93,36 @@ export default function DeviceResetRequestsIndex({ requests, stats, status }: Pr
 
             <Card className="mt-6">
                 <CardContent className="p-0">
+                    <TableToolbar>
+                        <SearchInput
+                            value={filters.search}
+                            onSearch={(search) => apply({ search })}
+                            placeholder="Search employee, code or reason…"
+                            className="min-w-0 flex-1"
+                        />
+                        <select
+                            aria-label="Filter by status"
+                            value={filters.status_filter ?? ''}
+                            onChange={(e) => apply({ status_filter: e.target.value || null })}
+                            className="h-9 rounded-md border border-input bg-background px-3 text-sm"
+                        >
+                            <option value="">All statuses</option>
+                            {statuses.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                    {option.label}
+                                </option>
+                            ))}
+                        </select>
+                    </TableToolbar>
                     <div className="overflow-x-auto">
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead>Employee</TableHead>
+                                    <SortableHead column="employee" label="Employee" sort={filters.sort} direction={filters.direction} onSort={applySort} />
                                     <TableHead>Current device</TableHead>
                                     <TableHead>Reason</TableHead>
-                                    <TableHead>Submitted</TableHead>
-                                    <TableHead>Status</TableHead>
+                                    <SortableHead column="submitted" label="Submitted" sort={filters.sort} direction={filters.direction} onSort={applySort} />
+                                    <SortableHead column="status" label="Status" sort={filters.sort} direction={filters.direction} onSort={applySort} />
                                     <TableHead className="text-right">Actions</TableHead>
                                 </TableRow>
                             </TableHeader>
@@ -101,7 +131,9 @@ export default function DeviceResetRequestsIndex({ requests, stats, status }: Pr
                                     <TableRow>
                                         <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
                                             <Smartphone className="mx-auto mb-2 h-8 w-8 opacity-40" />
-                                            No device reset requests yet.
+                                            {filters.search || filters.status_filter
+                                                ? 'No device reset requests match your filters.'
+                                                : 'No device reset requests yet.'}
                                         </TableCell>
                                     </TableRow>
                                 ) : (

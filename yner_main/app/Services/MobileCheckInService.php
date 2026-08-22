@@ -23,6 +23,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Str;
 use RuntimeException;
 
 /**
@@ -34,12 +35,19 @@ use RuntimeException;
  * gate passes is a `raw_attendance_logs` row written, and from that point the punch is
  * indistinguishable from a biometric one to everything downstream.
  *
- * ONE ACCOUNT, ONE DEVICE. Gates 2 and 2b together answer "is this the one handset linked to
- * this account?" — the assertion proves a registered credential signed, and the device binding
- * token proves the handset presenting it is the one that was enrolled. Neither is optional and
- * there is no degraded mode: a request that cannot establish which device it came from is
- * refused, because that is the only question this channel is really asking. What the account
- * cannot do is quietly re-point itself at a different phone; see DeviceResetRequest.
+ * ONE ACCOUNT, ONE DEVICE. Gates 2 and 2b together answer "is this the one device linked to
+ * this account?". The assertion is the primary proof and is never optional — no valid assertion
+ * means no check-in, full stop. The binding token is corroboration: it identifies the browser
+ * profile that was enrolled, which the credential alone cannot.
+ *
+ * The two are weighted differently on purpose. A WRONG credential is refused outright. A MISSING
+ * token is not, because nothing on the web identifies physical hardware — a cookie and its
+ * localStorage mirror are per-browser-profile, so a second browser, an in-app webview, or
+ * cleared site data all look identical to a stolen handset. Those are refused only for the
+ * account they belong to; for the account's own bound credential the punch is accepted, the
+ * token is re-issued to that browser, and the takeover is flagged and audited. See
+ * assertBoundDevice() for why, and DeviceResetRequest for the one path that re-points an account
+ * at a genuinely different phone.
  *
  * WHAT THIS CHANNEL DOES AND DOES NOT PROVE. The WebAuthn assertion proves that a specific
  * registered device, unlocked by its owner's fingerprint or face, made this request. The
@@ -56,6 +64,9 @@ class MobileCheckInService
         private readonly DeviceTokenService $deviceTokens,
     ) {}
 
+    /** Set by a re-claim during record(); read by the controller to refresh the client mirror. */
+    private ?string $reissuedToken = null;
+
     /**
      * Run one check-in or check-out attempt end to end.
      *
@@ -65,6 +76,8 @@ class MobileCheckInService
      */
     public function record(User $user, CheckInDirection $direction, array $payload, ?Request $request = null): MobileCheckIn
     {
+        $this->reissuedToken = null;
+
         // Snapshot of everything known so far. Each gate adds to it, so a rejection row carries
         // as much context as the attempt actually reached — a row rejected at the geofence
         // still records the device that asserted and the real distance.
@@ -217,7 +230,7 @@ class MobileCheckInService
      *
      * @param  array<string, mixed>  $attempt
      */
-    private function assertBoundDevice(User $user, UserDevice $device, array $attempt, ?Request $request): void
+    private function assertBoundDevice(User $user, UserDevice $device, array &$attempt, ?Request $request): void
     {
         $bound = UserDevice::boundTo($user->id);
 
@@ -225,6 +238,8 @@ class MobileCheckInService
             $this->refuse($attempt, CheckInRejection::NoLinkedDevice);
         }
 
+        // The asserted credential is not the one holding this account's binding slot. A hard
+        // refusal: the passkey itself is wrong, and re-issuing a token cannot fix that.
         if ($bound->id !== $device->id) {
             $this->refuse($attempt, CheckInRejection::DeviceMismatch, flagged: true,
                 flagReason: 'Assertion came from a credential that is not the account\'s linked device.');
@@ -232,12 +247,76 @@ class MobileCheckInService
 
         $presented = $this->deviceTokens->resolve($this->deviceTokens->presented($request));
 
-        if ($presented === null || $presented->id !== $bound->id) {
-            $this->refuse($attempt, CheckInRejection::DeviceMismatch, flagged: true,
-                flagReason: $presented === null
-                    ? 'No device binding token was presented by this handset.'
-                    : 'The device binding token belongs to a different device.');
+        if ($presented !== null && $presented->id === $bound->id) {
+            return;
         }
+
+        // A token belonging to somebody else's active device. This browser was previously
+        // enrolled against a different account, which is the account-sharing signal the whole
+        // binding exists to catch — refuse, and do not re-issue.
+        if ($presented !== null) {
+            $this->refuse($attempt, CheckInRejection::DeviceMismatch, flagged: true,
+                flagReason: 'The device binding token belongs to a different account\'s device.');
+        }
+
+        // RE-CLAIM. No token — but the account's own bound credential just signed a fresh
+        // server challenge behind a biometric prompt, which is a strong proof. And a missing
+        // token has an ordinary explanation far more often than a sinister one: the cookie and
+        // its localStorage mirror are per-BROWSER-PROFILE, not per-device, because nothing on
+        // the web identifies physical hardware. A second browser, an in-app webview (a link
+        // opened from WhatsApp or Gmail), or cleared site data all present as "no token" for
+        // the same person on the same phone.
+        //
+        // Refusing would lock those people out of their own attendance and route a browser
+        // switch through an Admin-approved device reset. So this follows the rule the
+        // impossible-travel gate already sets in this file: flag, do not reject — an Admin
+        // seeing the flag can judge it, an automatic refusal cannot.
+        //
+        // Issuing overwrites `device_token_hash`, so the previously trusted browser's token
+        // stops resolving: exactly one browser holds a live token at a time. Two people taking
+        // turns on one account therefore generate a visible ping-pong of re-claims in the
+        // check-in log rather than sharing quietly.
+        $this->reclaim($bound, $attempt);
+    }
+
+    /**
+     * Hand this browser a fresh binding token and record that it took over.
+     *
+     * @param  array<string, mixed>  $attempt
+     */
+    private function reclaim(UserDevice $bound, array &$attempt): void
+    {
+        $this->reissuedToken = $this->deviceTokens->issue($bound);
+        $this->deviceTokens->queueCookie($this->reissuedToken);
+
+        $attempt['flagged'] = true;
+        $attempt['flag_reason'] = 'Device binding re-claimed by a browser holding no token ('
+            .Str::limit((string) ($attempt['user_agent'] ?? 'unknown client'), 80, '').').';
+
+        AuditLog::create([
+            'user_id' => $bound->user_id,
+            'auditable_type' => UserDevice::class,
+            'auditable_id' => $bound->id,
+            'action' => 'device.token_reclaimed',
+            'new_values' => [
+                'device_name' => $bound->device_name,
+                'user_agent' => $attempt['user_agent'] ?? null,
+                'ip' => $attempt['ip_address'] ?? null,
+            ],
+        ]);
+    }
+
+    /**
+     * The binding token minted during this request, if the handset re-claimed one.
+     *
+     * Per-request state on the service, which is not lovely, but the alternative is threading a
+     * second return value through `record()` and every gate under it. The queued cookie alone
+     * would almost do — this exists so the client can also refresh its localStorage mirror,
+     * without which a browser whose cookies expire would re-claim, and flag, all over again.
+     */
+    public function reissuedDeviceToken(): ?string
+    {
+        return $this->reissuedToken;
     }
 
     /**
@@ -333,15 +412,25 @@ class MobileCheckInService
                 // seeing the flag can judge it, an automatic refusal cannot.
                 [$flagged, $flagReason] = $this->assessTravel($employee, $attempt);
 
+                // Merged, not replaced: gate 2b may already have flagged this attempt for a
+                // token re-claim, and one punch can be both re-claimed and implausibly
+                // travelled. Overwriting here would hide whichever came first.
+                if ($flagged) {
+                    $attempt['flagged'] = true;
+                    $attempt['flag_reason'] = trim((string) ($attempt['flag_reason'] ?? '').' '.$flagReason);
+                }
+
                 // ---- Gate 9: the punch itself --------------------------------------------
                 $log = $this->writePunch($employee, $attempt);
 
                 // ---- Gate 10: the check-in record ----------------------------------------
+                // `$attempt` wins the union, so anything gate 2b set is preserved and these
+                // are the defaults for the ordinary unflagged case.
                 return MobileCheckIn::create($attempt + [
                     'raw_attendance_log_id' => $log->id,
                     'result' => CheckInResult::Accepted,
-                    'flagged' => $flagged,
-                    'flag_reason' => $flagReason,
+                    'flagged' => false,
+                    'flag_reason' => null,
                 ]);
             });
         } catch (MobileCheckInException $e) {
@@ -534,12 +623,14 @@ class MobileCheckInService
             return null;
         }
 
-        return MobileCheckIn::create($attempt + [
+        // array_merge, not `+`: an explicitly flagged refusal must override whatever gate 2b
+        // left on the attempt, rather than being silently discarded by it.
+        return MobileCheckIn::create(array_merge($attempt, [
             'result' => CheckInResult::Rejected,
             'rejection_reason' => $reason,
-            'flagged' => $flagged,
-            'flag_reason' => $flagReason,
-        ]);
+            'flagged' => $flagged || (bool) ($attempt['flagged'] ?? false),
+            'flag_reason' => $flagReason ?? ($attempt['flag_reason'] ?? null),
+        ]));
     }
 
     private function audit(User $user, MobileCheckIn $checkIn, WorkLocation $location): void

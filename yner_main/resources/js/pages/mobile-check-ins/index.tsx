@@ -1,9 +1,10 @@
-import { Head, router } from '@inertiajs/react';
+import { Head } from '@inertiajs/react';
 import { CheckCircle2, Flag, ShieldCheck, ShieldOff, Smartphone, XCircle } from 'lucide-react';
 import { useState } from 'react';
-import { route } from 'ziggy-js';
 
 import { Pagination } from '@/components/pagination';
+import { SortableHead } from '@/components/sortable-head';
+import { SearchInput, TableToolbar, nextDirection, visitIndex, type IndexFilters } from '@/components/table-toolbar';
 import { StatCard } from '@/components/stat-card';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -35,7 +36,7 @@ interface CheckInRow {
     ip_address: string | null;
 }
 
-interface Filters {
+interface Filters extends IndexFilters {
     from: string | null;
     to: string | null;
     employee: number | null;
@@ -60,23 +61,32 @@ export default function MobileCheckInsIndex({ checkIns, filters, employees, resu
         flagged: filters.flagged,
     });
 
-    const apply = (next: typeof form) => {
+    // The dropdown filters and the free-text search share one query string, so changing either
+    // one has to carry the other along rather than silently dropping it.
+    const apply = (next: typeof form, patch: Record<string, unknown> = {}) => {
         setForm(next);
 
-        router.get(
-            route('mobile-check-ins.index'),
-            {
-                from: next.from || undefined,
-                to: next.to || undefined,
-                employee: next.employee || undefined,
-                result: next.result || undefined,
-                flagged: next.flagged ? 1 : undefined,
-            },
-            { preserveState: true, preserveScroll: true, replace: true },
-        );
+        visitIndex('mobile-check-ins.index', {
+            from: next.from,
+            to: next.to,
+            employee: next.employee,
+            result: next.result,
+            flagged: next.flagged ? 1 : undefined,
+            search: filters.search,
+            sort: filters.sort,
+            direction: filters.direction,
+            ...patch,
+        });
     };
 
-    const reset = () => apply({ from: '', to: '', employee: '', result: '', flagged: false });
+    const applySort = (column: string) =>
+        apply(form, { sort: column, direction: nextDirection(column, filters.sort, filters.direction) });
+
+    const reset = () =>
+        apply(
+            { from: '', to: '', employee: '', result: '', flagged: false },
+            { search: undefined, sort: undefined, direction: undefined },
+        );
 
     return (
         <AppLayout>
@@ -155,17 +165,26 @@ export default function MobileCheckInsIndex({ checkIns, filters, employees, resu
             </Card>
 
             <Card className="mt-4">
-                <CardContent className="overflow-x-auto p-0">
+                <CardContent className="p-0">
+                    <TableToolbar>
+                        <SearchInput
+                            value={filters.search}
+                            onSearch={(search) => apply(form, { search })}
+                            placeholder="Search employee, code, device, location or IP…"
+                            className="min-w-0 flex-1"
+                        />
+                    </TableToolbar>
+                    <div className="overflow-x-auto">
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead>Employee</TableHead>
-                                <TableHead>When</TableHead>
-                                <TableHead>Direction</TableHead>
+                                <SortableHead column="employee" label="Employee" sort={filters.sort} direction={filters.direction} onSort={applySort} />
+                                <SortableHead column="punched_at" label="When" sort={filters.sort} direction={filters.direction} onSort={applySort} />
+                                <SortableHead column="direction" label="Direction" sort={filters.sort} direction={filters.direction} onSort={applySort} />
                                 <TableHead>Location</TableHead>
-                                <TableHead>Distance</TableHead>
+                                <SortableHead column="distance_meters" label="Distance" sort={filters.sort} direction={filters.direction} onSort={applySort} />
                                 <TableHead>Device</TableHead>
-                                <TableHead>Result</TableHead>
+                                <SortableHead column="result" label="Result" sort={filters.sort} direction={filters.direction} onSort={applySort} />
                             </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -235,6 +254,7 @@ export default function MobileCheckInsIndex({ checkIns, filters, employees, resu
                             )}
                         </TableBody>
                     </Table>
+                    </div>
                 </CardContent>
             </Card>
 

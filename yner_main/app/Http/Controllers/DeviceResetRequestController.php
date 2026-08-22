@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\DeviceResetStatus;
 use App\Enums\RoleName;
+use App\Http\Concerns\HasIndexFilters;
 use App\Models\AuditLog;
 use App\Models\DeviceResetRequest;
 use App\Models\User;
@@ -30,6 +31,21 @@ use Inertia\Response;
  */
 class DeviceResetRequestController extends Controller
 {
+    use HasIndexFilters;
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function sortable(): array
+    {
+        return [
+            'employee' => User::select('name')->whereColumn('users.id', 'device_reset_requests.user_id'),
+            'status' => 'status',
+            'submitted' => 'created_at',
+            'reviewed' => 'reviewed_at',
+        ];
+    }
+
     /**
      * The Admin/HR review queue.
      */
@@ -39,21 +55,31 @@ class DeviceResetRequestController extends Controller
 
         $user = $request->user();
 
-        $filters = $request->validate([
-            'status' => ['nullable', 'string', 'in:'.implode(',', DeviceResetStatus::values())],
-            'employee' => ['nullable', 'string', 'max:100'],
+        $statusFilter = in_array($request->query('status_filter'), DeviceResetStatus::values(), true)
+            ? $request->query('status_filter')
+            : null;
+
+        $filters = $this->indexFilters($request, $this->sortable(), 'submitted', 'desc');
+
+        $query = DeviceResetRequest::with(['user', 'employee', 'reviewer', 'device'])
+            ->when($statusFilter, fn ($q, $status) => $q->where('status', $status));
+
+        // `user.name` as well as the employee columns: a request can be raised by an account
+        // whose HR record is not linked yet, and searching for that person by name has to work.
+        $this->applySearch($query, $filters['search'], [
+            'reason', 'review_note',
+            'employee.first_name', 'employee.last_name', 'employee.employee_code',
+            'user.name', 'user.email',
         ]);
 
-        $requests = DeviceResetRequest::with(['user', 'employee', 'reviewer', 'device'])
-            ->when($filters['status'] ?? null, fn ($q, $status) => $q->where('status', $status))
-            ->when($filters['employee'] ?? null, fn ($q, $term) => $q->whereHas(
-                'employee',
-                fn ($e) => $e->where('first_name', 'like', "%{$term}%")
-                    ->orWhere('last_name', 'like', "%{$term}%")
-                    ->orWhere('employee_code', 'like', "%{$term}%"),
-            ))
-            ->orderByRaw("status = 'pending' desc")
-            ->latest()
+        // Pending on top by default; a chosen column takes over completely.
+        if (! $filters['explicit']) {
+            $query->orderByRaw("status = 'pending' desc");
+        }
+
+        $this->applySort($query, $filters, $this->sortable());
+
+        $requests = $query
             ->paginate(15)
             ->withQueryString()
             ->through(fn (DeviceResetRequest $req) => [
@@ -78,7 +104,11 @@ class DeviceResetRequestController extends Controller
 
         return Inertia::render('device-reset-requests/index', [
             'requests' => $requests,
-            'filters' => $filters,
+            'filters' => $filters + ['status_filter' => $statusFilter],
+            'statuses' => array_map(
+                fn (DeviceResetStatus $s) => ['value' => $s->value, 'label' => $s->label()],
+                DeviceResetStatus::cases(),
+            ),
             'stats' => [
                 'pending' => DeviceResetRequest::where('status', DeviceResetStatus::Pending)->count(),
                 'approved' => DeviceResetRequest::where('status', DeviceResetStatus::Approved)->count(),

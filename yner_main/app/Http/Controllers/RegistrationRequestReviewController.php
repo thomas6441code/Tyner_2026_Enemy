@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\RegistrationStatus;
+use App\Http\Concerns\HasIndexFilters;
 use App\Models\AccountInvitation;
 use App\Models\AuditLog;
 use App\Models\Department;
@@ -29,6 +30,23 @@ use Throwable;
  */
 class RegistrationRequestReviewController extends Controller
 {
+    use HasIndexFilters;
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function sortable(): array
+    {
+        return [
+            'name' => ['last_name', 'first_name'],
+            'email' => 'email',
+            'department' => Department::select('name')
+                ->whereColumn('departments.id', 'registration_requests.department_id'),
+            'status' => 'status',
+            'submitted' => 'created_at',
+        ];
+    }
+
     public function __construct(private readonly EmployeeCodeGenerator $codes) {}
 
     public function index(Request $request): Response
@@ -37,10 +55,25 @@ class RegistrationRequestReviewController extends Controller
 
         $user = $request->user();
 
-        $requests = RegistrationRequest::with(['department', 'reviewer', 'employee'])
-            ->orderByRaw("status = 'pending' desc")
-            ->latest()
+        $filters = $this->indexFilters($request, $this->sortable(), 'submitted', 'desc');
+
+        $query = RegistrationRequest::with(['department', 'reviewer', 'employee']);
+
+        $this->applySearch($query, $filters['search'], [
+            'first_name', 'last_name', 'email', 'phone', 'note',
+            'department.name',
+        ]);
+
+        // Pending on top by default; a chosen column takes over completely.
+        if (! $filters['explicit']) {
+            $query->orderByRaw("status = 'pending' desc");
+        }
+
+        $this->applySort($query, $filters, $this->sortable());
+
+        $requests = $query
             ->paginate(15)
+            ->withQueryString()
             ->through(fn (RegistrationRequest $req) => [
                 'id' => $req->id,
                 'name' => $req->fullName(),
@@ -60,6 +93,7 @@ class RegistrationRequestReviewController extends Controller
 
         return Inertia::render('registration-requests/index', [
             'requests' => $requests,
+            'filters' => $filters,
             'stats' => [
                 'pending' => RegistrationRequest::where('status', RegistrationStatus::Pending)->count(),
                 'approved' => RegistrationRequest::where('status', RegistrationStatus::Approved)->count(),

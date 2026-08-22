@@ -6,7 +6,9 @@ use App\Enums\PermissionStatus;
 use App\Enums\PermissionType;
 use App\Enums\RoleName;
 use App\Events\PermissionRequestApproved;
+use App\Http\Concerns\HasIndexFilters;
 use App\Models\AuditLog;
+use App\Models\Employee;
 use App\Models\PermissionRequest;
 use App\Models\User;
 use App\Notifications\SystemNotification;
@@ -20,6 +22,26 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class PermissionRequestController extends Controller
 {
+    use HasIndexFilters;
+
+    /**
+     * Sort keys the index accepts. `employee` orders by the requester's surname through a
+     * correlated subquery rather than a join, so the row set is unchanged by the sort.
+     *
+     * @return array<string, mixed>
+     */
+    private function sortable(): array
+    {
+        return [
+            'employee' => Employee::select('last_name')->whereColumn('employees.id', 'permission_requests.employee_id'),
+            'type' => 'type',
+            'start_date' => 'start_date',
+            'end_date' => 'end_date',
+            'status' => 'status',
+            'submitted' => 'created_at',
+        ];
+    }
+
     /**
      * List permission requests. Admin/HR see everything; an Employee sees only their own.
      */
@@ -30,35 +52,62 @@ class PermissionRequestController extends Controller
         $user = $request->user();
         $isManager = $user->hasAnyRole([RoleName::Admin->value, RoleName::HrOfficer->value]);
 
-        $query = PermissionRequest::with(['employee', 'reviewer'])
-            ->orderByRaw("status = 'pending' desc")
-            ->latest();
+        $filters = $this->indexFilters($request, $this->sortable(), 'submitted', 'desc');
+        $statusFilter = in_array($request->query('status_filter'), PermissionStatus::values(), true)
+            ? $request->query('status_filter')
+            : null;
+
+        $query = PermissionRequest::with(['employee', 'reviewer']);
 
         if (! $isManager) {
             $query->whereHas('employee', fn ($q) => $q->where('user_id', $user->id));
         }
 
-        $requests = $query->paginate(15)->through(fn (PermissionRequest $req) => [
-            'id' => $req->id,
-            'employee' => $req->employee?->fullName(),
-            'type' => $req->type->value,
-            'type_label' => $req->type->label(),
-            'start_date' => $req->start_date->toDateString(),
-            'end_date' => $req->end_date->toDateString(),
-            'reason' => $req->reason,
-            'status' => $req->status->value,
-            'status_label' => $req->status->label(),
-            'reviewer' => $req->reviewer?->name,
-            'review_note' => $req->review_note,
-            'reviewed_at' => $req->reviewed_at?->toDateTimeString(),
-            'has_attachment' => $req->attachment_path !== null,
-            'can_review' => $user->can('review', $req),
-            'can_edit' => $user->can('update', $req),
-            'can_cancel' => $user->can('delete', $req),
+        if ($statusFilter !== null) {
+            $query->where('status', $statusFilter);
+        }
+
+        // Searchable across the requester and the free text, because "who asked" and "what did
+        // they say" are the two things a reviewer actually goes looking for.
+        $this->applySearch($query, $filters['search'], [
+            'reason', 'review_note',
+            'employee.first_name', 'employee.last_name', 'employee.employee_code',
+            'reviewer.name',
         ]);
+
+        // Pending on top by default; a chosen column takes over completely.
+        if (! $filters['explicit']) {
+            $query->orderByRaw("status = 'pending' desc");
+        }
+
+        $this->applySort($query, $filters, $this->sortable());
+
+        $requests = $query
+            ->paginate(15)
+            ->withQueryString()
+            ->through(fn (PermissionRequest $req) => [
+                'id' => $req->id,
+                'employee' => $req->employee?->fullName(),
+                'type' => $req->type->value,
+                'type_label' => $req->type->label(),
+                'start_date' => $req->start_date->toDateString(),
+                'end_date' => $req->end_date->toDateString(),
+                'reason' => $req->reason,
+                'status' => $req->status->value,
+                'status_label' => $req->status->label(),
+                'reviewer' => $req->reviewer?->name,
+                'review_note' => $req->review_note,
+                'reviewed_at' => $req->reviewed_at?->toDateTimeString(),
+                'submitted_at' => $req->created_at?->toDateTimeString(),
+                'has_attachment' => $req->attachment_path !== null,
+                'can_review' => $user->can('review', $req),
+                'can_edit' => $user->can('update', $req),
+                'can_cancel' => $user->can('delete', $req),
+            ]);
 
         return Inertia::render('permission-requests/index', [
             'requests' => $requests,
+            'filters' => $filters + ['status_filter' => $statusFilter],
             'stats' => [
                 'pending' => PermissionRequest::where('status', PermissionStatus::Pending)->count(),
                 'approved' => PermissionRequest::where('status', PermissionStatus::Approved)->count(),

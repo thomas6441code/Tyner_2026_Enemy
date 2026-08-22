@@ -1,4 +1,5 @@
 import { Head, useForm, usePage } from '@inertiajs/react';
+import { route } from 'ziggy-js';
 import { CheckCircle2, FileText, Lightbulb, Sparkles } from 'lucide-react';
 
 import { Badge } from '@/components/ui/badge';

@@ -4,6 +4,9 @@ import {
     Calendar,
     CalendarX2,
     Check,
+    ChevronDown,
+    ChevronUp,
+    ChevronsUpDown,
     CircleCheck,
     Clock,
     Download,
@@ -102,6 +105,9 @@ interface AttendanceIndexProps {
     status?: string;
 }
 
+/** The grid's only sortable axis is who the row is about — the rest of it is dates. */
+type SortColumn = 'name' | 'role';
+
 interface Correcting {
     record: AttendanceCorrectionRecord;
     employeeName: string;
@@ -190,6 +196,10 @@ export default function AttendanceIndex({
     status,
 }: AttendanceIndexProps) {
     const [query, setQuery] = useState('');
+    const [sort, setSort] = useState<{ column: SortColumn; direction: 'asc' | 'desc' }>({
+        column: 'name',
+        direction: 'asc',
+    });
     const [correcting, setCorrecting] = useState<Correcting | null>(null);
     const [from, setFrom] = useState(filters.from);
     const [to, setTo] = useState(filters.to);
@@ -197,16 +207,35 @@ export default function AttendanceIndex({
         filters.employee_id ? String(filters.employee_id) : ALL_EMPLOYEES,
     );
 
+    // The grid ships every scoped employee in one payload, so search and sort are both resolved
+    // here rather than round-tripping — the date range is the only thing the server re-queries.
     const filtered = rows.filter(
         (row) =>
             row.name.toLowerCase().includes(query.toLowerCase()) ||
             row.role.toLowerCase().includes(query.toLowerCase()),
     );
 
-    const { page, pageSize, pageCount, paginated, total, setPage, setPageSize, reset } = usePagination(filtered);
+    const sorted = [...filtered].sort((a, b) => {
+        const left = sort.column === 'role' ? a.role : a.name;
+        const right = sort.column === 'role' ? b.role : b.name;
+        const compared = left.localeCompare(right, undefined, { sensitivity: 'base' });
+
+        return sort.direction === 'asc' ? compared : -compared;
+    });
+
+    const { page, pageSize, pageCount, paginated, total, setPage, setPageSize, reset } = usePagination(sorted);
 
     function handleQueryChange(value: string) {
         setQuery(value);
+        reset();
+    }
+
+    function toggleSort(column: SortColumn) {
+        setSort((current) =>
+            current.column === column
+                ? { column, direction: current.direction === 'asc' ? 'desc' : 'asc' }
+                : { column, direction: 'asc' },
+        );
         reset();
     }
 
@@ -351,7 +380,50 @@ export default function AttendanceIndex({
                         <table className="w-full min-w-[900px] border-separate border-spacing-0 text-sm">
                             <thead>
                                 <tr className="text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                                    <th className="sticky left-0 z-10 bg-card px-3 py-3">Employee</th>
+                                    <th className="sticky left-0 z-10 bg-card px-3 py-3">
+                                        <span className="inline-flex items-center gap-3">
+                                            <button
+                                                type="button"
+                                                onClick={() => toggleSort('name')}
+                                                aria-label="Sort by employee name"
+                                                className={cn(
+                                                    'inline-flex items-center gap-1 uppercase transition-colors hover:text-foreground',
+                                                    sort.column === 'name' && 'text-foreground',
+                                                )}
+                                            >
+                                                Employee
+                                                {sort.column === 'name' ? (
+                                                    sort.direction === 'asc' ? (
+                                                        <ChevronUp className="h-3.5 w-3.5" />
+                                                    ) : (
+                                                        <ChevronDown className="h-3.5 w-3.5" />
+                                                    )
+                                                ) : (
+                                                    <ChevronsUpDown className="h-3.5 w-3.5 opacity-40" />
+                                                )}
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => toggleSort('role')}
+                                                aria-label="Sort by department"
+                                                className={cn(
+                                                    'inline-flex items-center gap-1 uppercase transition-colors hover:text-foreground',
+                                                    sort.column === 'role' && 'text-foreground',
+                                                )}
+                                            >
+                                                Dept
+                                                {sort.column === 'role' ? (
+                                                    sort.direction === 'asc' ? (
+                                                        <ChevronUp className="h-3.5 w-3.5" />
+                                                    ) : (
+                                                        <ChevronDown className="h-3.5 w-3.5" />
+                                                    )
+                                                ) : (
+                                                    <ChevronsUpDown className="h-3.5 w-3.5 opacity-40" />
+                                                )}
+                                            </button>
+                                        </span>
+                                    </th>
                                     {days.map((day) => (
                                         <th key={day.iso} className="px-3 py-3 font-semibold">
                                             {day.name}

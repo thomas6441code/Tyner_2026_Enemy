@@ -6,6 +6,8 @@ import { route } from 'ziggy-js';
 import { ConfirmDialog } from '@/components/confirm-dialog';
 import { EmployeeFormDialog } from '@/components/employee-form-dialog';
 import { Pagination } from '@/components/pagination';
+import { SortableHead } from '@/components/sortable-head';
+import { SearchInput, TableToolbar, nextDirection, visitIndex, type IndexFilters } from '@/components/table-toolbar';
 import { StatCard } from '@/components/stat-card';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -55,6 +57,7 @@ interface EmployeesIndexProps {
     workLocations: Option[];
     unlinkedUsers: UserOption[];
     nextEmployeeCode: string;
+    filters: IndexFilters;
     stats: { total: number; active: number; inactive: number; unlinked: number };
     actions: { create: boolean; update: boolean; delete: boolean };
     status?: string;
@@ -72,6 +75,7 @@ export default function EmployeesIndex({
     workLocations,
     unlinkedUsers,
     nextEmployeeCode,
+    filters,
     stats,
     actions,
     status,
@@ -79,6 +83,13 @@ export default function EmployeesIndex({
     const [dialog, setDialog] = useState<{ record: Employee | null } | null>(null);
     const [viewing, setViewing] = useState<Employee | null>(null);
     const [deleting, setDeleting] = useState<Employee | null>(null);
+
+    const applySort = (column: string) =>
+        visitIndex('employees.index', {
+            ...filters,
+            sort: column,
+            direction: nextDirection(column, filters.sort, filters.direction),
+        });
 
     return (
         <AppLayout>
@@ -111,14 +122,22 @@ export default function EmployeesIndex({
 
             <Card className="mt-6">
                 <CardContent className="p-0">
+                    <TableToolbar>
+                        <SearchInput
+                            value={filters.search}
+                            onSearch={(search) => visitIndex('employees.index', { ...filters, search })}
+                            placeholder="Search name, code, phone, department, email…"
+                            className="min-w-0 flex-1"
+                        />
+                    </TableToolbar>
                     <Table>
                         <TableHeader>
                             <TableRow>
-                                <TableHead>Employee</TableHead>
-                                <TableHead>Code</TableHead>
-                                <TableHead>Department</TableHead>
-                                <TableHead>Work Schedule</TableHead>
-                                <TableHead>Status</TableHead>
+                                <SortableHead column="name" label="Employee" sort={filters.sort} direction={filters.direction} onSort={applySort} />
+                                <SortableHead column="employee_code" label="Code" sort={filters.sort} direction={filters.direction} onSort={applySort} />
+                                <SortableHead column="department" label="Department" sort={filters.sort} direction={filters.direction} onSort={applySort} />
+                                <SortableHead column="schedule" label="Work Schedule" sort={filters.sort} direction={filters.direction} onSort={applySort} />
+                                <SortableHead column="status" label="Status" sort={filters.sort} direction={filters.direction} onSort={applySort} />
                                 <TableHead className="text-right">Actions</TableHead>
                             </TableRow>
                         </TableHeader>
@@ -126,7 +145,7 @@ export default function EmployeesIndex({
                             {employees.data.length === 0 ? (
                                 <TableRow>
                                     <TableCell colSpan={6} className="py-10 text-center text-muted-foreground">
-                                        No employees yet.
+                                        {filters.search ? 'No employees match your search.' : 'No employees yet.'}
                                     </TableCell>
                                 </TableRow>
                             ) : (

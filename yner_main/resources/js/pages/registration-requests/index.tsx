@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 
 import { InvitationLinkDialog } from '@/components/invitation-link-dialog';
 import { Pagination } from '@/components/pagination';
+import { SortableHead } from '@/components/sortable-head';
+import { SearchInput, TableToolbar, nextDirection, visitIndex, type IndexFilters } from '@/components/table-toolbar';
 import { RegistrationApproveDialog, RegistrationRejectDialog } from '@/components/registration-review-dialog';
 import { StatCard } from '@/components/stat-card';
 import { Badge } from '@/components/ui/badge';
@@ -38,6 +40,7 @@ interface Props {
         data: RegistrationRow[];
         links: { url: string | null; label: string; active: boolean }[];
     };
+    filters: IndexFilters;
     stats: { pending: number; approved: number; rejected: number };
     formData: {
         nextEmployeeCode: string;
@@ -58,6 +61,7 @@ const STATUS_VARIANT: Record<string, 'default' | 'secondary' | 'destructive' | '
 
 export default function RegistrationRequestsIndex({
     requests,
+    filters,
     stats,
     formData,
     status,
@@ -67,6 +71,13 @@ export default function RegistrationRequestsIndex({
     const [approving, setApproving] = useState<RegistrationRow | null>(null);
     const [rejecting, setRejecting] = useState<RegistrationRow | null>(null);
     const [linkUrl, setLinkUrl] = useState<string | null>(null);
+
+    const applySort = (column: string) =>
+        visitIndex('registration-requests.index', {
+            ...filters,
+            sort: column,
+            direction: nextDirection(column, filters.sort, filters.direction),
+        });
 
     // The activation URL arrives as a one-shot flash prop; surface it the moment it lands.
     useEffect(() => {
@@ -106,14 +117,22 @@ export default function RegistrationRequestsIndex({
 
             <Card className="mt-6">
                 <CardContent className="p-0">
+                    <TableToolbar>
+                        <SearchInput
+                            value={filters.search}
+                            onSearch={(search) => visitIndex('registration-requests.index', { ...filters, search })}
+                            placeholder="Search name, email, phone, department…"
+                            className="min-w-0 flex-1"
+                        />
+                    </TableToolbar>
                     <div className="overflow-x-auto">
                         <Table>
                             <TableHeader>
                                 <TableRow>
-                                    <TableHead>Applicant</TableHead>
-                                    <TableHead>Department</TableHead>
-                                    <TableHead>Submitted</TableHead>
-                                    <TableHead>Status</TableHead>
+                                    <SortableHead column="name" label="Applicant" sort={filters.sort} direction={filters.direction} onSort={applySort} />
+                                    <SortableHead column="department" label="Department" sort={filters.sort} direction={filters.direction} onSort={applySort} />
+                                    <SortableHead column="submitted" label="Submitted" sort={filters.sort} direction={filters.direction} onSort={applySort} />
+                                    <SortableHead column="status" label="Status" sort={filters.sort} direction={filters.direction} onSort={applySort} />
                                     <TableHead className="text-right">Actions</TableHead>
                                 </TableRow>
                             </TableHeader>
@@ -122,7 +141,9 @@ export default function RegistrationRequestsIndex({
                                     <TableRow>
                                         <TableCell colSpan={5} className="py-10 text-center text-muted-foreground">
                                             <UserPlus className="mx-auto mb-2 h-8 w-8 opacity-40" />
-                                            No registration requests yet.
+                                            {filters.search
+                                                ? 'No registration requests match your search.'
+                                                : 'No registration requests yet.'}
                                         </TableCell>
                                     </TableRow>
                                 ) : (

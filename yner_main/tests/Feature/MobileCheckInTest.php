@@ -339,16 +339,72 @@ class MobileCheckInTest extends TestCase
         $this->assertTrue(MobileCheckIn::first()->flagged);
     }
 
-    public function test_a_check_in_without_the_device_binding_token_is_rejected(): void
+    public function test_a_browser_with_no_token_re_claims_the_binding_instead_of_being_locked_out(): void
     {
         $user = $this->employeeUser();
+        $originalHash = $this->webauthn->device->device_token_hash;
 
-        // The credential verifies and belongs to the bound device — this is the case WebAuthn
-        // alone cannot catch, where the passkey has reached a second handset.
+        // No token, but the account's own bound credential signed. Cookies and localStorage are
+        // per-browser-profile, so this is what a second browser, an in-app webview, or cleared
+        // site data look like — refusing would lock people out of their own attendance for
+        // opening a link from WhatsApp.
         $this->deviceToken = null;
 
-        $this->assertRejected($this->checkIn($user), CheckInRejection::DeviceMismatch);
-        $this->assertSame(0, RawAttendanceLog::count());
+        $response = $this->checkIn($user)->assertOk();
+
+        // Accepted, and the punch reaches the pipeline.
+        $this->assertSame(1, RawAttendanceLog::count());
+
+        // But never silently: flagged, audited, and visible to an Admin.
+        $checkIn = MobileCheckIn::first();
+        $this->assertTrue($checkIn->flagged);
+        $this->assertStringContainsString('re-claimed', (string) $checkIn->flag_reason);
+        $this->assertDatabaseHas('audit_logs', ['action' => 'device.token_reclaimed']);
+
+        // The token is rotated, so the previously trusted browser's copy stops resolving —
+        // exactly one browser holds a live token at a time, and a shared account ping-pongs
+        // visibly instead of settling quietly.
+        $this->webauthn->device->refresh();
+        $this->assertNotSame($originalHash, $this->webauthn->device->device_token_hash);
+
+        // Returned once so the client can mirror it and not re-claim on every punch.
+        $this->assertIsString($response->json('device_token'));
+        $this->assertSame(
+            hash('sha256', $response->json('device_token')),
+            $this->webauthn->device->device_token_hash,
+        );
+    }
+
+    public function test_a_re_claimed_token_is_accepted_without_flagging_next_time(): void
+    {
+        $user = $this->employeeUser();
+        $this->deviceToken = null;
+
+        $this->deviceToken = $this->checkIn($user)->assertOk()->json('device_token');
+
+        Carbon::setTestNow(Carbon::parse('2026-06-22 17:00:00'));
+
+        // Having mirrored the re-issued token, the same browser is now the known one.
+        $this->checkIn($user, ['direction' => 'out'])->assertOk()->assertJson(['flagged' => false]);
+    }
+
+    public function test_the_old_browsers_token_stops_working_after_a_re_claim(): void
+    {
+        $user = $this->employeeUser();
+        $stale = $this->deviceToken;
+
+        $this->deviceToken = null;
+        $this->checkIn($user)->assertOk();
+
+        Carbon::setTestNow(Carbon::parse('2026-06-22 17:00:00'));
+
+        // The first browser presents a token that no longer resolves to anything. It is treated
+        // as another no-token client and re-claims in turn — which is the ping-pong an Admin
+        // sees when two people are taking turns on one account.
+        $this->deviceToken = $stale;
+        $this->checkIn($user, ['direction' => 'out'])->assertOk()->assertJson(['flagged' => true]);
+
+        $this->assertSame(2, AuditLog::where('action', 'device.token_reclaimed')->count());
     }
 
     public function test_a_binding_token_belonging_to_another_device_is_rejected(): void
@@ -365,7 +421,11 @@ class MobileCheckInTest extends TestCase
 
         $this->deviceToken = app(DeviceTokenService::class)->issue($other);
 
+        // Still a hard refusal, and deliberately not a re-claim: a token that resolves to
+        // somebody else's active device means this browser was enrolled against another
+        // account, which is the account-sharing signal the whole binding exists to catch.
         $this->assertRejected($this->checkIn($user), CheckInRejection::DeviceMismatch);
+        $this->assertSame(0, RawAttendanceLog::count());
     }
 
     public function test_a_revoked_device_holds_no_binding_slot(): void

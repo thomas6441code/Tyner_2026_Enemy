@@ -2,6 +2,7 @@ import { startAuthentication, startRegistration } from '@simplewebauthn/browser'
 import { useCallback, useEffect, useState } from 'react';
 import { route } from 'ziggy-js';
 
+import { touchPointsHeader } from '@/lib/device-form-factor';
 import { deviceTokenHeader, storeDeviceToken } from '@/lib/device-token';
 
 /**
@@ -184,6 +185,8 @@ function jsonHeaders(): Record<string, string> {
         // Sent on registration too, not only on check-in: it is how the server recognises a
         // handset that is already linked to a different account.
         ...deviceTokenHeader(),
+        // Lets an iPad in desktop mode be recognised as a tablet rather than a Mac.
+        ...touchPointsHeader(),
     };
 }
 

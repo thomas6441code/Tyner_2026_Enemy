@@ -13,6 +13,7 @@ namespace App\Enums;
 enum CheckInRejection: string
 {
     case NoEmployeeRecord = 'no_employee_record';
+    case UnsupportedDevice = 'unsupported_device';
     case WebauthnFailed = 'webauthn_failed';
     case NoLinkedDevice = 'no_linked_device';
     case DeviceMismatch = 'device_mismatch';
@@ -36,6 +37,7 @@ enum CheckInRejection: string
     {
         return match ($this) {
             self::NoEmployeeRecord => 'Your account is not linked to an active employee record. Contact HR.',
+            self::UnsupportedDevice => 'Attendance can only be used from a phone or tablet. Open this page on your mobile device.',
             self::WebauthnFailed => 'Your device could not be verified. Register this phone under My Device, then try again.',
             self::NoLinkedDevice => 'No device is linked to your account. Register this phone under My Device, then try again.',
             self::DeviceMismatch => 'This device is linked to a different account. Check in from your own registered phone, or ask an administrator for a device reset.',

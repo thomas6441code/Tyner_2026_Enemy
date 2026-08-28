@@ -173,7 +173,12 @@ class AttendanceController extends Controller
                 'generated_at' => Carbon::now()->format('d M Y H:i'),
             ],
             'totals' => $this->detailTotals($rows),
-        ])->setPaper('a4', 'portrait')->download($filename);
+        ])
+            // The letterhead's last-page footer is drawn from the layout's inline
+            // page_script, which dompdf only evaluates when PHP is enabled.
+            ->setOption('isPhpEnabled', true)
+            ->setPaper('a4', 'portrait')
+            ->download($filename);
     }
 
     /**

@@ -1,5 +1,5 @@
 import { Head, Link } from '@inertiajs/react';
-import { AlertTriangle, CheckCircle2, Clock, LogIn, LogOut, MapPin, Smartphone } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Clock, Laptop, LogIn, LogOut, MapPin, Smartphone } from 'lucide-react';
 import { useState } from 'react';
 import { route } from 'ziggy-js';
 
@@ -10,6 +10,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { describeWebAuthnError, useWebAuthn, useWebAuthnSupport } from '@/components/webauthn/use-webauthn';
 import { WebAuthnUnavailable } from '@/components/webauthn/webauthn-unavailable';
 import AppLayout from '@/layouts/app-layout';
+import { touchPointsHeader } from '@/lib/device-form-factor';
 import { deviceTokenHeader, storeDeviceToken } from '@/lib/device-token';
 
 interface CheckInShowProps {
@@ -22,6 +23,9 @@ interface CheckInShowProps {
     // means offer registration, "a device, but not this one" means offer a reset request.
     linkedDevice?: { name: string; rp_id_matches: boolean } | null;
     maxAccuracyMeters?: number;
+    // False on a laptop or desktop. The server refuses those punches outright, so the page
+    // says so up front instead of letting the employee reach a rejection.
+    handheld?: boolean;
     actions?: { create: boolean };
 }
 
@@ -35,6 +39,7 @@ export default function CheckInShow({
     windows,
     linkedDevice = null,
     maxAccuracyMeters = 100,
+    handheld = true,
     actions,
 }: CheckInShowProps) {
     const support = useWebAuthnSupport();
@@ -89,6 +94,8 @@ export default function CheckInShow({
                     // Proof this is the same handset that was enrolled, mirrored from
                     // localStorage in case the httpOnly cookie has been cleared.
                     ...deviceTokenHeader(),
+                    // Lets an iPad in desktop mode be recognised as a tablet rather than a Mac.
+                    ...touchPointsHeader(),
                 },
                 credentials: 'same-origin',
                 body: JSON.stringify({ direction, ...fix, credential }),
@@ -148,7 +155,7 @@ export default function CheckInShow({
     }
 
     const needsDevice = linkedDevice === null;
-    const canPunch = actions?.create && support === 'supported' && !needsDevice;
+    const canPunch = handheld && actions?.create && support === 'supported' && !needsDevice;
 
     return (
         <AppLayout>
@@ -161,13 +168,27 @@ export default function CheckInShow({
                 </p>
             </div>
 
-            {(support === 'insecure-context' || support === 'unsupported') && (
+            {!handheld && (
+                <div className="mt-6 flex gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                    <Laptop className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+                    <div>
+                        <p className="font-semibold">Check in from your phone</p>
+                        <p className="mt-1">
+                            Attendance can only be recorded from a phone or tablet, so that the punch comes
+                            from the device you carry and a real GPS fix. Open this page on your mobile
+                            device and check in there.
+                        </p>
+                    </div>
+                </div>
+            )}
+
+            {handheld && (support === 'insecure-context' || support === 'unsupported') && (
                 <div className="mt-6">
                     <WebAuthnUnavailable support={support} />
                 </div>
             )}
 
-            {needsDevice && support === 'supported' && (
+            {handheld && needsDevice && support === 'supported' && (
                 <div className="mt-6 flex gap-3 rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
                     <Smartphone className="mt-0.5 h-5 w-5 shrink-0 text-blue-600" />
                     <div>

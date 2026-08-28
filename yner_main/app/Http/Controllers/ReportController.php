@@ -121,6 +121,9 @@ class ReportController extends Controller
         $filename = "attendance-report-{$from->toDateString()}_to_{$to->toDateString()}.pdf";
 
         return Pdf::loadView('reports.attendance-pdf', ['report' => $report])
+            // The letterhead's last-page footer is drawn from the layout's inline
+            // page_script, which dompdf only evaluates when PHP is enabled.
+            ->setOption('isPhpEnabled', true)
             ->setPaper('a4', 'portrait')
             ->download($filename);
     }

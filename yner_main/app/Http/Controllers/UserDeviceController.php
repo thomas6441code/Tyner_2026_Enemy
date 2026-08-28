@@ -11,6 +11,7 @@ use App\Models\DeviceResetRequest;
 use App\Models\User;
 use App\Models\UserDevice;
 use App\Notifications\SystemNotification;
+use App\Services\DeviceFormFactorDetector;
 use App\Services\DeviceTokenService;
 use App\Services\WebAuthnService;
 use Illuminate\Http\JsonResponse;
@@ -49,6 +50,7 @@ class UserDeviceController extends Controller
     public function __construct(
         private readonly WebAuthnService $webauthn,
         private readonly DeviceTokenService $deviceTokens,
+        private readonly DeviceFormFactorDetector $formFactor,
     ) {}
 
     /**
@@ -107,6 +109,11 @@ class UserDeviceController extends Controller
                 'can_delete' => $user->can('delete', $device),
             ]);
 
+        // Registration is what binds an account to one handset for good, so the form factor
+        // rule bites hardest here: a device linked from a desktop is a permanent hole in the
+        // one-account-one-device rule, not a one-off bad punch.
+        $handheld = ! $this->formFactor->refuses($request);
+
         $canRegister = $user->can('create', UserDevice::class);
         $myDevice = UserDevice::boundTo($user->id);
         $openReset = DeviceResetRequest::query()->where('user_id', $user->id)->usable()->first();
@@ -136,8 +143,11 @@ class UserDeviceController extends Controller
                 'reset_pending' => $pendingReset !== null,
                 'reset_approved_until' => $openReset?->approved_until?->toDateTimeString(),
             ],
+            'handheld' => $handheld,
             'actions' => [
-                'register' => $canRegister,
+                // The button is hidden on a computer rather than shown and then refused. Both
+                // ceremony endpoints re-check, so this is presentation, not enforcement.
+                'register' => $canRegister && $handheld,
                 // Offered whenever the employee cannot register, not merely when they still
                 // hold a device. Someone whose phone an Admin revoked has no device AND no
                 // approval, and without this they would be stranded — unable to link a
@@ -160,6 +170,10 @@ class UserDeviceController extends Controller
     {
         $this->authorize('create', UserDevice::class);
 
+        if ($refusal = $this->refuseNonHandheld($request)) {
+            return $refusal;
+        }
+
         return response()->json($this->webauthn->registrationOptions($request->user()));
     }
 
@@ -169,6 +183,12 @@ class UserDeviceController extends Controller
     public function registerVerify(Request $request): JsonResponse
     {
         $this->authorize('create', UserDevice::class);
+
+        // Checked again on the verify leg, not just when the options were issued: the two are
+        // separate requests, and only this one creates the binding.
+        if ($refusal = $this->refuseNonHandheld($request)) {
+            return $refusal;
+        }
 
         $validated = $request->validate([
             'device_name' => ['required', 'string', 'max:100'],
@@ -233,6 +253,37 @@ class UserDeviceController extends Controller
             // above carries the same value; two stores because browsers clear them separately.
             'device_token' => $token,
         ]);
+    }
+
+    /**
+     * The shared refusal for both legs of the registration ceremony, or null to proceed.
+     *
+     * The attempt is audited. Someone trying to link a workstation is either confused or
+     * probing the rule, and both are worth an Admin being able to look up later — unlike a
+     * check-in, there is no mobile_check_ins row to carry it.
+     */
+    private function refuseNonHandheld(Request $request): ?JsonResponse
+    {
+        if (! $this->formFactor->refuses($request)) {
+            return null;
+        }
+
+        AuditLog::create([
+            'user_id' => $request->user()->id,
+            // Anchored to the user, not to a device: no device was created, and audit_logs
+            // requires a subject.
+            'auditable_type' => User::class,
+            'auditable_id' => $request->user()->id,
+            'action' => 'device.registration_refused',
+            'new_values' => [
+                'reason' => 'not_handheld',
+                'form_factor' => $this->formFactor->classify($request)->value,
+                'user_agent' => $request->userAgent() ? mb_substr($request->userAgent(), 0, 250) : null,
+                'ip' => $request->ip(),
+            ],
+        ]);
+
+        return response()->json(['message' => $this->formFactor->refusalMessage()], 422);
     }
 
     /**

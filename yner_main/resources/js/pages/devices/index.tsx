@@ -1,5 +1,5 @@
 import { Head, router } from '@inertiajs/react';
-import { AlertTriangle, ClipboardList, Clock, ShieldCheck, ShieldX, Smartphone, Trash2 } from 'lucide-react';
+import { AlertTriangle, ClipboardList, Clock, Laptop, ShieldCheck, ShieldX, Smartphone, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { route } from 'ziggy-js';
 
@@ -53,13 +53,16 @@ interface DevicesIndexProps {
     filters: IndexFilters;
     stats: { active: number; revoked: number; mine: number };
     binding: Binding;
+    // False on a laptop or desktop: a device may only be linked from the handset that will
+    // do the checking in, and the server refuses the ceremony from anything else.
+    handheld?: boolean;
     actions: { register: boolean; requestReset: boolean; reviewResets: boolean };
     isAdmin: boolean;
     rpId: string;
     status?: string;
 }
 
-export default function DevicesIndex({ devices, filters, stats, binding, actions, isAdmin, rpId, status }: DevicesIndexProps) {
+export default function DevicesIndex({ devices, filters, stats, binding, handheld = true, actions, isAdmin, rpId, status }: DevicesIndexProps) {
     const support = useWebAuthnSupport();
     const [registering, setRegistering] = useState(false);
     const [requestingReset, setRequestingReset] = useState(false);
@@ -102,6 +105,20 @@ export default function DevicesIndex({ devices, filters, stats, binding, actions
                 </div>
             )}
 
+            {!handheld && !binding.has_device && (
+                <div className="mt-4 flex gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                    <Laptop className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+                    <div>
+                        <p className="font-semibold">Link your device from the device itself</p>
+                        <p className="mt-1">
+                            Only a phone or tablet can be linked, and it has to be linked from the handset
+                            you will check in with — a computer cannot stand in for it. Open this page on
+                            your phone and link it there.
+                        </p>
+                    </div>
+                </div>
+            )}
+
             {/*
               The employee-facing card. Deliberately not a list: showing a table of "your
               devices" would suggest there could be more than one, which is exactly the mental
@@ -140,7 +157,9 @@ export default function DevicesIndex({ devices, filters, stats, binding, actions
                                     <p className="mt-1 text-sm text-muted-foreground">
                                         {actions.register
                                             ? 'Link this phone to check in from outside a biometric terminal.'
-                                            : 'Your previous device was unlinked. An administrator must approve a reset before you can link a phone.'}
+                                            : !handheld
+                                              ? 'Open this page on your phone or tablet to link it.'
+                                              : 'Your previous device was unlinked. An administrator must approve a reset before you can link a phone.'}
                                     </p>
                                 </div>
                             </div>

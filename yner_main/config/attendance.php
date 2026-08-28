@@ -16,6 +16,12 @@ return [
 
     'mobile' => [
 
+        // Phones and tablets only: check-in, check-out and device registration are all refused
+        // from laptops and desktops. See App\Services\DeviceFormFactorDetector for how the
+        // form factor is read, and why this is a policy gate rather than a security boundary.
+        // Turn it off for a pilot on shared office machines, or in the test suite.
+        'require_handheld' => (bool) env('MOBILE_REQUIRE_HANDHELD', true),
+
         // Reject any fix coarser than this. Blocks IP- and cell-tower-derived positions, which
         // can be kilometres out and would sail through a 150m geofence by luck.
         'max_accuracy_meters' => (int) env('MOBILE_MAX_ACCURACY_METERS', 100),

@@ -10,6 +10,7 @@ use App\Http\Concerns\HasIndexFilters;
 use App\Models\Employee;
 use App\Models\MobileCheckIn;
 use App\Models\UserDevice;
+use App\Services\DeviceFormFactorDetector;
 use App\Services\GeofenceService;
 use App\Services\MobileCheckInService;
 use App\Services\WebAuthnService;
@@ -48,6 +49,7 @@ class MobileCheckInController extends Controller
         private readonly MobileCheckInService $checkIns,
         private readonly GeofenceService $geofence,
         private readonly WebAuthnService $webauthn,
+        private readonly DeviceFormFactorDetector $formFactor,
     ) {}
 
     /**
@@ -58,10 +60,15 @@ class MobileCheckInController extends Controller
         $user = $request->user();
         $employee = $user->employee()->with(['workSchedule', 'workLocation', 'department.workLocation'])->first();
 
+        // Answered once here and passed down, so the page can say "not on this computer"
+        // before the employee grants location access and reaches a rejection.
+        $handheld = ! $this->formFactor->refuses($request);
+
         if ($employee === null || $employee->status !== 'active') {
             return Inertia::render('check-in/show', [
                 'employee' => null,
                 'linkedDevice' => null,
+                'handheld' => $handheld,
             ]);
         }
 
@@ -94,6 +101,9 @@ class MobileCheckInController extends Controller
                 'rp_id_matches' => $device->rp_id === $this->webauthn->rpId(),
             ] : null,
             'maxAccuracyMeters' => (int) config('attendance.mobile.max_accuracy_meters'),
+            // Advisory only. The same check runs again inside the service on every punch, so
+            // a client that ignores this prop gains nothing.
+            'handheld' => $handheld,
             'actions' => ['create' => $user->can('create', MobileCheckIn::class)],
         ]);
     }
@@ -104,6 +114,15 @@ class MobileCheckInController extends Controller
     public function assertionOptions(Request $request): JsonResponse
     {
         $this->authorize('create', MobileCheckIn::class);
+
+        // Refused here as well as in the service: no reason to make a desktop user complete a
+        // fingerprint prompt for a punch that Gate 1b is going to reject a moment later.
+        if ($this->formFactor->refuses($request)) {
+            return response()->json([
+                'message' => CheckInRejection::UnsupportedDevice->message(),
+                'reason' => CheckInRejection::UnsupportedDevice->value,
+            ], 422);
+        }
 
         return response()->json($this->webauthn->assertionOptions($request->user()));
     }

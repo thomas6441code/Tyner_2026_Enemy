@@ -62,6 +62,7 @@ class MobileCheckInService
         private readonly GeofenceService $geofence,
         private readonly WebAuthnService $webauthn,
         private readonly DeviceTokenService $deviceTokens,
+        private readonly DeviceFormFactorDetector $formFactor,
     ) {}
 
     /** Set by a re-claim during record(); read by the controller to refresh the client mirror. */
@@ -105,6 +106,19 @@ class MobileCheckInService
         }
 
         $attempt['employee_id'] = $employee->id;
+
+        // ---- Gate 1b: a phone or tablet --------------------------------------------------
+        // This channel is for handsets. A punch from a laptop or desktop is refused before the
+        // WebAuthn prompt, because the machine's "location" is Wi-Fi triangulation from the
+        // office router and its authenticator is shared with everyone who can unlock it —
+        // neither of which the gates below can tell apart from the real thing.
+        //
+        // Placed AFTER the employee lookup so the refusal is recorded against them: an
+        // employee repeatedly trying from a desktop is something an Admin should be able to
+        // see in the log, not something that vanishes with a bare 422.
+        if ($this->formFactor->refuses($request)) {
+            $this->refuse($attempt, CheckInRejection::UnsupportedDevice);
+        }
 
         // ---- Gate 2: WebAuthn assertion --------------------------------------------------
         // Verified against the challenge this server put in the session, which the service

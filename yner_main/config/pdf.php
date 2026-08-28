@@ -14,8 +14,13 @@
 
 return [
     'brand' => env('PDF_BRAND', config('app.name', 'EAPMS')),
-    'organisation' => env('PDF_ORGANISATION', 'Institute of Finance Management'),
-    'tagline' => env('PDF_TAGLINE', 'Employee Attendance & Permission Management System'),
+    'organisation' => env('PDF_ORGANISATION', 'The Institute of Finance Management'),
+    'motto' => env('PDF_MOTTO', 'Jifunze Uhudumie'),
+    'tagline' => env('PDF_TAGLINE', 'Attendance & Permission Management System'),
+
+    // Crest rendered in the running header. Relative to public/; blank or missing
+    // file simply drops the image and the header reflows.
+    'logo' => env('PDF_LOGO', 'logo.png'),
 
     'contact' => [
         'email' => env('PDF_CONTACT_EMAIL', 'hr@eapms.ifm.ac.tz'),

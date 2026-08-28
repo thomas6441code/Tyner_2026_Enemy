@@ -52,4 +52,21 @@ enum AttendanceStatus: string
             default => false,
         };
     }
+
+    /**
+     * Whether clock times (first in / last out / worked hours / late minutes) are
+     * meaningful for this status.
+     *
+     * Only a physically-present day carries times. An absence and every approved-leave
+     * status describe a day the employee was not on the clock, so reports must blank
+     * those columns rather than print stale or zeroed punch data next to them — a
+     * "Sick Leave" row showing 08:50–16:00 reads as if the employee actually worked.
+     */
+    public function showsTimes(): bool
+    {
+        return match ($this) {
+            self::Present, self::Late => true,
+            default => false,
+        };
+    }
 }

@@ -15,6 +15,11 @@
 @php
     $pdfCfg = config('pdf');
     $exp = static fn ($value) => var_export((string) $value, true);
+
+    // dompdf reads the crest straight off disk; drop it if the file is absent so the
+    // header still renders (e.g. a deployment that has not published public/logo.png).
+    $logoPath = $pdfCfg['logo'] ? public_path($pdfCfg['logo']) : null;
+    $logoPath = $logoPath && is_file($logoPath) ? $logoPath : null;
 @endphp
 <!DOCTYPE html>
 <html lang="en">
@@ -28,14 +33,19 @@
         body { margin: 0; color: #0f172a; font-size: 9.5pt; line-height: 1.45; }
 
         /* ---------- running header (repeats on every page) ---------- */
-        .deco-square { position: fixed; top: -102pt; left: -14pt; width: 36pt; height: 36pt; background: #22d3ee; }
-        .deco-frame  { position: fixed; top: -88pt;  left: 2pt;   width: 62pt; height: 62pt; border: 1pt solid #0f172a; }
+        .deco-square { position: fixed; top: -132pt; left: -42pt; width: 26pt; height: 26pt; background: #22d3ee; }
 
-        .brand { position: fixed; top: -104pt; left: 0; right: 0; text-align: right; }
-        .brand-dots { margin-bottom: 4pt; }
-        .brand-dots span { display: inline-block; width: 6pt; height: 6pt; border-radius: 3pt; margin-left: 3pt; }
-        .brand-word { font-size: 21pt; font-weight: bold; letter-spacing: 3pt; color: #0f172a; }
-        .brand-org { font-size: 7pt; letter-spacing: 1.6pt; text-transform: uppercase; color: #64748b; margin-top: 2pt; }
+        .brand { position: fixed; top: -106pt; left: 0; right: 0; width: 100%; border-collapse: collapse; }
+        .brand td { padding: 0; vertical-align: middle; }
+        .crest { width: 54pt; height: 54pt; }
+        .brand-inst { padding-left: 9pt; }
+        .inst-name { font-size: 9.5pt; font-weight: bold; letter-spacing: 0.4pt; color: #1e3a8a; line-height: 1.2; }
+        .inst-motto { font-size: 7pt; font-style: italic; letter-spacing: 1.4pt; text-transform: uppercase; color: #64748b; margin-top: 2pt; }
+        .brand-right { text-align: right; }
+        .brand-dots { margin-bottom: 3pt; }
+        .brand-dots span { display: inline-block; width: 5pt; height: 5pt; border-radius: 2.5pt; margin-left: 3pt; }
+        .brand-word { font-size: 18pt; font-weight: bold; letter-spacing: 2.6pt; color: #0f172a; line-height: 1.1; }
+        .brand-sys { font-size: 6.5pt; letter-spacing: 0.9pt; text-transform: uppercase; color: #64748b; margin-top: 2pt; }
 
         .head-rule { position: fixed; top: -22pt; left: 0; right: 0; width: 100%; border-collapse: collapse; }
         .head-rule td { height: 3pt; padding: 0; line-height: 3pt; font-size: 0; }
@@ -81,17 +91,27 @@
     </style>
 </head>
 <body>
-    {{-- letterhead corner accents + brand mark, repeated on every page --}}
+    {{-- letterhead corner accent + institutional crest + system mark, on every page --}}
     <div class="deco-square"></div>
-    <div class="deco-frame"></div>
 
-    <div class="brand">
-        <div class="brand-dots">
-            <span style="background:#22d3ee"></span><span style="background:#0ea5e9"></span><span style="background:#2563eb"></span>
-        </div>
-        <div class="brand-word">{{ $pdfCfg['brand'] }}</div>
-        <div class="brand-org">{{ $pdfCfg['organisation'] }}</div>
-    </div>
+    <table class="brand">
+        <tr>
+            @if ($logoPath)
+                <td style="width:54pt"><img class="crest" src="{{ $logoPath }}" alt=""></td>
+            @endif
+            <td class="brand-inst">
+                <div class="inst-name">{{ $pdfCfg['organisation'] }}</div>
+                <div class="inst-motto">{{ $pdfCfg['motto'] }}</div>
+            </td>
+            <td class="brand-right">
+                <div class="brand-dots">
+                    <span style="background:#22d3ee"></span><span style="background:#0ea5e9"></span><span style="background:#2563eb"></span>
+                </div>
+                <div class="brand-word">{{ $pdfCfg['brand'] }}</div>
+                <div class="brand-sys">{{ $pdfCfg['tagline'] }}</div>
+            </td>
+        </tr>
+    </table>
 
     <table class="head-rule">
         <tr>

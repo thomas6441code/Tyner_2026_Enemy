@@ -47,10 +47,13 @@ class AttendanceController extends Controller
 
         $employees = $this->scopedEmployees($employee, $user, $isManager);
 
-        // Records for the range, keyed [employee_id][Y-m-d] for O(1) cell lookup.
-        $records = AttendanceRecord::whereIn('employee_id', $employees->pluck('id'))
+        // Records for the range, kept flat for the KPI roll-up and keyed
+        // [employee_id][Y-m-d] for O(1) cell lookup.
+        $rangeRecords = AttendanceRecord::whereIn('employee_id', $employees->pluck('id'))
             ->whereBetween('work_date', [$from->toDateString(), $to->toDateString()])
-            ->get()
+            ->get();
+
+        $records = $rangeRecords
             ->groupBy('employee_id')
             ->map(fn (Collection $group) => $group->keyBy(fn (AttendanceRecord $r) => $r->work_date->toDateString()));
 
@@ -68,24 +71,17 @@ class AttendanceController extends Controller
             ];
         })->values()->all();
 
-        // KPI cards always reflect *today* regardless of the selected range, so fetch
-        // today's records for the scoped employees independently.
-        $todayRecords = AttendanceRecord::whereIn('employee_id', $employees->pluck('id'))
-            ->where('work_date', $today)
-            ->get()
-            ->groupBy('employee_id')
-            ->map(fn (Collection $group) => $group->keyBy(fn (AttendanceRecord $r) => $r->work_date->toDateString()));
-
         $exportParams = $this->queryParams($from, $to, $employee);
 
         return Inertia::render('attendance/index', [
             'weekLabel' => $from->format('d M').' – '.$to->format('d M Y'),
             'days' => $days,
             'rows' => $rows,
-            'stats' => $this->stats($employees, $todayRecords, $today),
+            'stats' => $this->stats($employees, $rangeRecords, count($days)),
             'statusOptions' => collect(AttendanceStatus::cases())
                 ->map(fn (AttendanceStatus $s) => ['value' => $s->value, 'label' => $s->label()])
                 ->all(),
+            'statsScope' => $isManager ? ($employee ? 'employee' : 'all') : 'mine',
             'canCorrect' => $isManager,
             'canFilterEmployee' => $isManager,
             'employees' => $isManager
@@ -129,7 +125,7 @@ class AttendanceController extends Controller
 
             fputcsv($handle, [
                 'Employee Code', 'Employee', 'Department', 'Date', 'Status',
-                'First In', 'Last Out', 'Worked Hours', 'Late Minutes', 'Remarks',
+                'First In', 'Last Out', 'Worked Hours', 'Late Minutes', 'Reason / Remarks',
             ]);
 
             foreach ($rows as $row) {
@@ -254,30 +250,48 @@ class AttendanceController extends Controller
 
         $byId = $employees->keyBy('id');
 
-        return AttendanceRecord::whereIn('employee_id', $employees->pluck('id'))
+        return AttendanceRecord::with('permissionRequest')
+            ->whereIn('employee_id', $employees->pluck('id'))
             ->whereBetween('work_date', [$from->toDateString(), $to->toDateString()])
             ->orderBy('employee_id')
             ->orderBy('work_date')
             ->get()
             ->map(function (AttendanceRecord $record) use ($byId) {
                 $employee = $byId->get($record->employee_id);
+                $dash = '—';
+
+                // Absences and approved leave were never on the clock: blank every time
+                // column so the row cannot be misread as a worked day.
+                $timed = $record->status->showsTimes();
 
                 return [
                     'employee_code' => $employee?->employee_code ?? '',
                     'name' => $employee?->fullName() ?? '',
-                    'department' => $employee?->department?->name ?? '—',
+                    'department' => $employee?->department?->name ?? $dash,
                     'date' => $record->work_date->format('D, d M Y'),
                     'status' => $record->status->label(),
-                    'first_in' => $record->first_in?->format('H:i') ?? '—',
-                    'last_out' => $record->last_out?->format('H:i') ?? '—',
-                    'worked_hours' => $record->worked_minutes !== null
+                    'first_in' => $timed ? ($record->first_in?->format('H:i') ?? $dash) : $dash,
+                    'last_out' => $timed ? ($record->last_out?->format('H:i') ?? $dash) : $dash,
+                    'worked_hours' => $timed && $record->worked_minutes !== null
                         ? round($record->worked_minutes / 60, 1)
-                        : '—',
-                    'late_minutes' => (int) $record->late_minutes,
-                    'remarks' => $record->remarks ?? '',
+                        : $dash,
+                    'late_minutes' => $timed ? (int) $record->late_minutes : $dash,
+                    'remarks' => $this->rowReason($record),
                 ];
             })
             ->all();
+    }
+
+    /**
+     * Why the employee was away. Prefers the reason the employee actually submitted on
+     * the linked permission request over the sync engine's generated remark, which only
+     * restates the status the Status column already shows.
+     */
+    private function rowReason(AttendanceRecord $record): string
+    {
+        $reason = trim((string) $record->permissionRequest?->reason);
+
+        return $reason !== '' ? $reason : (string) ($record->remarks ?? '');
     }
 
     /**
@@ -303,7 +317,10 @@ class AttendanceController extends Controller
                 fn ($r) => in_array($r['status'], $this->leaveLabels(), true),
             )),
             'worked_hours' => round($workedHours, 1),
-            'late_minutes' => array_sum(array_column($rows, 'late_minutes')),
+            'late_minutes' => array_sum(array_map(
+                fn ($r) => is_numeric($r['late_minutes']) ? $r['late_minutes'] : 0,
+                $rows,
+            )),
         ];
     }
 
@@ -471,31 +488,35 @@ class AttendanceController extends Controller
     }
 
     /**
-     * KPI cards from today's real records.
+     * KPI cards for the *selected range* over the scoped employees. Counters are
+     * employee-days, so a one-day range reads exactly like the old "today" cards while a
+     * wider range totals the whole period.
      *
      * @param  Collection<int, Employee>  $employees
-     * @param  Collection<int, Collection<string, AttendanceRecord>>  $records
+     * @param  Collection<int, AttendanceRecord>  $records  flat, already limited to the range
      * @return array<string, int>
      */
-    private function stats(Collection $employees, Collection $records, string $today): array
+    private function stats(Collection $employees, Collection $records, int $days): array
     {
-        $todays = $records
-            ->map(fn (Collection $byDate) => $byDate->get($today))
-            ->filter()
-            ->values();
+        $present = $records->filter(fn (AttendanceRecord $r) => in_array($r->status, [AttendanceStatus::Present, AttendanceStatus::Late], true))->count();
+        $late = $records->filter(fn (AttendanceRecord $r) => $r->status === AttendanceStatus::Late)->count();
+        $onLeave = $records->filter(fn (AttendanceRecord $r) => $r->status->isLeave())->count();
+        $absent = $records->filter(fn (AttendanceRecord $r) => $r->status === AttendanceStatus::Absent)->count();
 
-        $present = $todays->filter(fn (AttendanceRecord $r) => in_array($r->status, [AttendanceStatus::Present, AttendanceStatus::Late], true))->count();
-        $late = $todays->filter(fn (AttendanceRecord $r) => $r->status === AttendanceStatus::Late)->count();
-        $onLeave = $todays->filter(fn (AttendanceRecord $r) => $r->status->isLeave())->count();
-        $absent = $todays->filter(fn (AttendanceRecord $r) => $r->status === AttendanceStatus::Absent)->count();
+        // Every scoped employee owes one record per day in the range; anything not marked
+        // present is what the "remaining" caption counts.
+        $expected = $employees->count() * max($days, 1);
 
         return [
             'present' => $present,
-            'presentRemaining' => max($employees->count() - $present, 0),
+            'presentRemaining' => max($expected - $present, 0),
             'late' => $late,
             'onTime' => max($present - $late, 0),
             'onLeave' => $onLeave,
             'absent' => $absent,
+            'expected' => $expected,
+            'days' => max($days, 1),
+            'employees' => $employees->count(),
         ];
     }
 

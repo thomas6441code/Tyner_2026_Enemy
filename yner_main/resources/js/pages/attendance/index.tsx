@@ -14,6 +14,7 @@ import {
     FileText,
     type LucideIcon,
     Search,
+    Users,
     X,
 } from 'lucide-react';
 import { useState } from 'react';
@@ -78,6 +79,10 @@ interface Stats {
     onTime: number;
     onLeave: number;
     absent: number;
+    /** Employee-days the range should have produced (employees x days). */
+    expected: number;
+    days: number;
+    employees: number;
 }
 
 interface EmployeeOption {
@@ -96,6 +101,8 @@ interface AttendanceIndexProps {
     days: Day[];
     rows: Row[];
     stats: Stats;
+    /** Whose records the cards count: everyone, one filtered employee, or just me. */
+    statsScope: 'all' | 'employee' | 'mine';
     statusOptions: StatusOption[];
     canCorrect: boolean;
     canFilterEmployee: boolean;
@@ -187,6 +194,7 @@ export default function AttendanceIndex({
     days,
     rows,
     stats,
+    statsScope,
     statusOptions,
     canCorrect,
     canFilterEmployee,
@@ -206,6 +214,15 @@ export default function AttendanceIndex({
     const [employeeId, setEmployeeId] = useState(
         filters.employee_id ? String(filters.employee_id) : ALL_EMPLOYEES,
     );
+
+    // The KPI cards summarise the applied date range, not just today, so their labels have to
+    // say which period and whose records they are counting.
+    const singleDay = stats.days === 1;
+    const today = new Date().toISOString().slice(0, 10);
+    const periodLabel = singleDay ? (filters.from === today ? 'Today' : filters.from) : weekLabel;
+    const scopeLabel =
+        statsScope === 'mine' ? 'My attendance' : statsScope === 'employee' ? 'Selected employee' : 'All employees';
+    const unit = singleDay ? 'People' : 'Days';
 
     // The grid ships every scoped employee in one payload, so search and sort are both resolved
     // here rather than round-tripping — the date range is the only thing the server re-queries.
@@ -294,23 +311,28 @@ export default function AttendanceIndex({
                 </DropdownMenu>
             </div>
 
-            <Card className="mt-6">
-            </Card>
+            <div className="mt-6 flex flex-wrap items-center gap-2 text-xs font-medium text-muted-foreground">
+                <Users className="h-3.5 w-3.5" />
+                <span>
+                    <span className="text-foreground">{scopeLabel}</span> · {periodLabel}
+                    {!singleDay && ` · ${stats.days} days × ${stats.employees} employee${stats.employees === 1 ? '' : 's'}`}
+                </span>
+            </div>
 
-            <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="mt-3 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                 <StatCard
                     icon={CircleCheck}
                     iconClass="bg-emerald-50 text-emerald-600"
-                    label="Present Today"
+                    label={singleDay ? `Present ${periodLabel}` : 'Present'}
                     value={stats.present}
-                    caption={`${stats.presentRemaining} People Remaining`}
+                    caption={`${stats.presentRemaining} ${unit} Remaining of ${stats.expected}`}
                 />
                 <StatCard
                     icon={Clock}
                     iconClass="bg-amber-50 text-amber-600"
                     label="Late Entry"
                     value={stats.late}
-                    caption={`${stats.onTime} People are on Time`}
+                    caption={`${stats.onTime} ${unit} on Time`}
                 />
                 <StatCard
                     icon={CalendarX2}

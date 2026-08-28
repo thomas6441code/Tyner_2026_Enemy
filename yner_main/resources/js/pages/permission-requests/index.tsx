@@ -1,5 +1,5 @@
 import { Head, router } from '@inertiajs/react';
-import { CalendarClock, CheckCircle2, Clock, Eye, Gavel, Paperclip, Pencil, Plus, XCircle } from 'lucide-react';
+import { Ban, CalendarClock, CheckCircle2, Clock, Eye, Gavel, Paperclip, Pencil, Plus, Users, XCircle } from 'lucide-react';
 import { useState } from 'react';
 import { route } from 'ziggy-js';
 
@@ -49,7 +49,9 @@ interface PermissionsIndexProps {
         links: { url: string | null; label: string; active: boolean }[];
     };
     filters: IndexFilters & { status_filter?: string | null };
-    stats: { pending: number; approved: number; rejected: number };
+    stats: { pending: number; approved: number; rejected: number; cancelled: number; total: number };
+    /** Whose requests the cards count — 'all' for Admin/HR, 'mine' for an employee. */
+    statsScope: 'all' | 'mine';
     types: Option[];
     statuses: Option[];
     actions: { create: boolean };
@@ -63,7 +65,7 @@ const statusVariant: Record<string, BadgeProps['variant']> = {
     cancelled: 'secondary',
 };
 
-export default function PermissionsIndex({ requests, filters, stats, types, actions, status }: PermissionsIndexProps) {
+export default function PermissionsIndex({ requests, filters, stats, statsScope, types, actions, status }: PermissionsIndexProps) {
     const [dialog, setDialog] = useState<{ record: PermissionRecord | null } | null>(null);
     const [reviewing, setReviewing] = useState<PermissionRow | null>(null);
     const [viewing, setViewing] = useState<PermissionRow | null>(null);
@@ -71,6 +73,8 @@ export default function PermissionsIndex({ requests, filters, stats, types, acti
 
     const rows = requests.data;
     const statusFilter = filters.status_filter ?? 'all';
+    const isOrgWide = statsScope === 'all';
+    const scopeLabel = isOrgWide ? 'All employees' : 'My requests';
 
     // Status, search and sort are all resolved server-side. Filtering the current page in the
     // browser used to hide matching requests that simply sat on page two.
@@ -94,7 +98,9 @@ export default function PermissionsIndex({ requests, filters, stats, types, acti
             <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                     <h1 className="text-2xl font-bold tracking-tight">Permissions & Leave</h1>
-                    <p className="text-sm text-muted-foreground">Request and approve time off</p>
+                    <p className="text-sm text-muted-foreground">
+                        {isOrgWide ? 'Request and approve time off' : 'Request time off and track your own requests'}
+                    </p>
                 </div>
                 {actions.create && (
                     <Button onClick={() => setDialog({ record: null })}>
@@ -103,10 +109,19 @@ export default function PermissionsIndex({ requests, filters, stats, types, acti
                 )}
             </div>
 
-            <div className="mt-6 grid gap-4 sm:grid-cols-3">
-                <StatCard icon={Clock} iconClass="bg-amber-50 text-amber-600" label="Pending" value={stats.pending} />
-                <StatCard icon={CheckCircle2} iconClass="bg-emerald-50 text-emerald-600" label="Approved" value={stats.approved} />
-                <StatCard icon={XCircle} iconClass="bg-rose-50 text-rose-600" label="Rejected" value={stats.rejected} />
+            <div className="mt-6 flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                <Users className="h-3.5 w-3.5" />
+                <span>
+                    Showing <span className="text-foreground">{scopeLabel.toLowerCase()}</span> — {stats.total} request
+                    {stats.total === 1 ? '' : 's'} in total
+                </span>
+            </div>
+
+            <div className="mt-3 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                <StatCard icon={Clock} iconClass="bg-amber-50 text-amber-600" label={`Pending · ${scopeLabel}`} value={stats.pending} />
+                <StatCard icon={CheckCircle2} iconClass="bg-emerald-50 text-emerald-600" label={`Approved · ${scopeLabel}`} value={stats.approved} />
+                <StatCard icon={XCircle} iconClass="bg-rose-50 text-rose-600" label={`Rejected · ${scopeLabel}`} value={stats.rejected} />
+                <StatCard icon={Ban} iconClass="bg-slate-100 text-slate-600" label={`Cancelled · ${scopeLabel}`} value={stats.cancelled} />
             </div>
 
             {status && (

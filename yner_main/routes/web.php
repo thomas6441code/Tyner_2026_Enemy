@@ -142,4 +142,4 @@ Route::middleware('auth')->group(function () {
     Route::resource('device-enrollments', DeviceEnrollmentController::class)->except(['show', 'create', 'edit']);
 });
 
-require __DIR__.'/auth.php';
+require __DIR__ . '/auth.php';

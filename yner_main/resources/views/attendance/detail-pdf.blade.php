@@ -49,7 +49,7 @@
                 <th>Out</th>
                 <th class="num">Hours</th>
                 <th class="num">Late min</th>
-                <th>Remarks</th>
+                <th>Reason / remarks</th>
             </tr>
         </thead>
         <tbody>

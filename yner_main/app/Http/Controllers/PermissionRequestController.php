@@ -12,6 +12,7 @@ use App\Models\Employee;
 use App\Models\PermissionRequest;
 use App\Models\User;
 use App\Notifications\SystemNotification;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Notification;
@@ -57,11 +58,12 @@ class PermissionRequestController extends Controller
             ? $request->query('status_filter')
             : null;
 
-        $query = PermissionRequest::with(['employee', 'reviewer']);
+        // One scoping rule shared by the list and the KPI cards: Admin/HR see the whole
+        // organisation, everyone else sees only the requests they filed themselves.
+        $scope = fn () => PermissionRequest::query()
+            ->unless($isManager, fn ($q) => $q->whereHas('employee', fn ($e) => $e->where('user_id', $user->id)));
 
-        if (! $isManager) {
-            $query->whereHas('employee', fn ($q) => $q->where('user_id', $user->id));
-        }
+        $query = $scope()->with(['employee', 'reviewer']);
 
         if ($statusFilter !== null) {
             $query->where('status', $statusFilter);
@@ -108,11 +110,8 @@ class PermissionRequestController extends Controller
         return Inertia::render('permission-requests/index', [
             'requests' => $requests,
             'filters' => $filters + ['status_filter' => $statusFilter],
-            'stats' => [
-                'pending' => PermissionRequest::where('status', PermissionStatus::Pending)->count(),
-                'approved' => PermissionRequest::where('status', PermissionStatus::Approved)->count(),
-                'rejected' => PermissionRequest::where('status', PermissionStatus::Rejected)->count(),
-            ],
+            'stats' => $this->stats($scope),
+            'statsScope' => $isManager ? 'all' : 'mine',
             'types' => collect(PermissionType::cases())
                 ->map(fn (PermissionType $t) => ['value' => $t->value, 'label' => $t->label()])
                 ->all(),
@@ -239,6 +238,29 @@ class PermissionRequestController extends Controller
         abort_if($permissionRequest->attachment_path === null, 404);
 
         return Storage::download($permissionRequest->attachment_path);
+    }
+
+    /**
+     * KPI counters, counted over the same scope the list uses so an Employee's cards
+     * describe their own requests rather than the whole organisation's.
+     *
+     * @param  callable(): Builder  $scope
+     * @return array<string, int>
+     */
+    private function stats(callable $scope): array
+    {
+        $counts = $scope()
+            ->selectRaw('status, count(*) as aggregate')
+            ->groupBy('status')
+            ->pluck('aggregate', 'status');
+
+        return [
+            'pending' => (int) $counts->get(PermissionStatus::Pending->value, 0),
+            'approved' => (int) $counts->get(PermissionStatus::Approved->value, 0),
+            'rejected' => (int) $counts->get(PermissionStatus::Rejected->value, 0),
+            'cancelled' => (int) $counts->get(PermissionStatus::Cancelled->value, 0),
+            'total' => (int) $counts->sum(),
+        ];
     }
 
     /**

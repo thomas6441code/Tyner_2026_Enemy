@@ -9,6 +9,7 @@ COPY resources ./resources
 COPY vite.config.js tsconfig.json ./
 RUN npm run build
 
+
 FROM php:8.4-fpm-alpine
 
 # System dependencies
@@ -25,27 +26,57 @@ RUN apk add --no-cache \
     && docker-php-ext-install pdo_mysql bcmath opcache intl \
     && apk del .build-deps
 
+
 # Composer
 COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 WORKDIR /var/www/html
 
-# Install PHP deps
-COPY composer.json composer.lock ./
-RUN composer install --no-dev --no-scripts --no-interaction --optimize-autoloader
 
+# PHP dependencies
+COPY composer.json composer.lock ./
+
+# Prefer Git/source repositories instead of GitHub dist ZIPs
+RUN composer install \
+    --no-dev \
+    --no-scripts \
+    --no-interaction \
+    --prefer-source \
+    --optimize-autoloader
+
+
+# Application
 COPY . .
+
 COPY --from=frontend /app/public/build ./public/build
 
-RUN mkdir -p storage/framework/cache storage/framework/sessions storage/framework/testing storage/framework/views storage/logs bootstrap/cache \
+
+# Laravel writable directories
+RUN mkdir -p \
+    storage/framework/cache \
+    storage/framework/sessions \
+    storage/framework/testing \
+    storage/framework/views \
+    storage/logs \
+    bootstrap/cache \
     && chown -R www-data:www-data storage bootstrap/cache
 
+
+# Nginx
 COPY docker/nginx.conf /etc/nginx/nginx.conf
+
+
+# Supervisor
 COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
+
+
+# Entrypoint
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
 RUN chmod +x /usr/local/bin/entrypoint.sh
+
 
 EXPOSE 8000
 
 ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+
 CMD ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]

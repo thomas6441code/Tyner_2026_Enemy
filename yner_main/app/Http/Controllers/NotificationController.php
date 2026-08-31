@@ -19,7 +19,7 @@ class NotificationController extends Controller
             ->notifications()
             ->latest()
             ->paginate(20)
-            ->through(fn (DatabaseNotification $notification) => [
+            ->through(fn(DatabaseNotification $notification) => [
                 'id' => $notification->id,
                 'type' => $notification->type,
                 'title' => $notification->data['title'] ?? class_basename($notification->type),

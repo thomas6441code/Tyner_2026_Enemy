@@ -100,13 +100,13 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                     active: route().current('reports.*'),
                     show: can.viewReports,
                 },
-                {
+              /*   {
                     href: route('ai-insights.index'),
                     label: 'AI Insights',
                     icon: Brain,
                     active: route().current('ai-insights.*'),
                     show: can.viewAiInsights,
-                },
+                }, */
                 {
                     href: route('report-summaries.index'),
                     label: 'AI Summaries',
@@ -172,7 +172,7 @@ function SidebarContent({ onNavigate }: { onNavigate?: () => void }) {
                     label: 'My Device',
                     icon: Smartphone,
                     active: route().current('devices.*'),
-                    show: true,
+                    show: can.checkIn,
                 },
                 {
                     href: route('device-reset-requests.index'),

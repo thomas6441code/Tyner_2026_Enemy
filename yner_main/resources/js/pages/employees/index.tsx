@@ -100,11 +100,11 @@ export default function EmployeesIndex({
                     <h1 className="text-2xl font-bold tracking-tight">Employees</h1>
                     <p className="text-sm text-muted-foreground">Manage staff records and assignments</p>
                 </div>
-                {actions.create && (
+               {/*  {actions.create && (
                     <Button onClick={() => setDialog({ record: null })}>
                         <Plus className="h-4 w-4" /> New Employee
                     </Button>
-                )}
+                )} */}
             </div>
 
             <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

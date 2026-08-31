@@ -22,8 +22,23 @@ RUN apk add --no-cache \
     zip \
     unzip \
     icu-libs \
-    && apk add --no-cache --virtual .build-deps icu-dev \
-    && docker-php-ext-install pdo_mysql bcmath opcache intl \
+    libpng \
+    libjpeg-turbo \
+    freetype \
+    && apk add --no-cache --virtual .build-deps \
+    icu-dev \
+    libpng-dev \
+    libjpeg-turbo-dev \
+    freetype-dev \
+    && docker-php-ext-configure gd \
+    --with-freetype \
+    --with-jpeg \
+    && docker-php-ext-install \
+    pdo_mysql \
+    bcmath \
+    opcache \
+    intl \
+    gd \
     && apk del .build-deps
 
 
